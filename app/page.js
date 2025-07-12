@@ -45,7 +45,7 @@ const templates = [
   {
     title: "E-commerce Excellence",
     description: "A robust and scalable online store solution, designed to maximize sales and user experience.",
-    imgSrc: "https://placehold.co/600x400/1a202c/ffffff?text=E-commerce",
+    imgSrc: "/AetherDemo.png",
   },
   {
     title: "Service-Based Business",
@@ -475,33 +475,53 @@ const ResultsSection = () => (
   </Section>
 );
 
-const TemplateShowcase = () => (
-  <Section id="templates" className="bg-white dark:bg-gray-800">
-    <SectionTitle subtext="Explore a universe of possibilities. Each template is a starting point for your unique brand.">
-      Website Templates & Protocols
-    </SectionTitle>
-    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-      {templates.map((template, index) => (
-        <motion.div
-          key={template.title}
-          className="bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden shadow-lg group"
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.5, delay: index * 0.1 }}
-        >
-          <div className="overflow-hidden">
-            <img src={template.imgSrc} alt={template.title} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" />
-          </div>
-          <div className="p-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{template.title}</h3>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">{template.description}</p>
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  </Section>
-);
+const TemplateShowcase = () => {
+  const getTemplatePath = (title) => {
+    const pathMap = {
+      "E-commerce Excellence": "/templates/ecommerce",
+      "Service-Based Business": "/templates/services", 
+      "Restaurant & Cafe": "/templates/restaurant",
+      "Portfolio Showcase": "/templates/portfolio"
+    };
+    return pathMap[title] || "/";
+  };
+
+  return (
+    <Section id="templates" className="bg-white dark:bg-gray-800">
+      <SectionTitle subtext="Explore a universe of possibilities. Each template is a starting point for your unique brand.">
+        Website Templates & Protocols
+      </SectionTitle>
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+        {templates.map((template, index) => (
+          <motion.div
+            key={template.title}
+            className="bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden shadow-lg group cursor-pointer"
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.5, delay: index * 0.1 }}
+            whileHover={{ scale: 1.05, boxShadow: '0 10px 40px 0 rgba(0,0,0,0.15)' }}
+            onClick={() => window.location.href = getTemplatePath(template.title)}
+          >
+            <div className="overflow-hidden">
+              <img src={template.imgSrc} alt={template.title} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" />
+            </div>
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">{template.title}</h3>
+              <p className="mt-2 text-gray-600 dark:text-gray-400">{template.description}</p>
+              <div className="mt-4 flex items-center text-blue-600 dark:text-blue-400 text-sm font-medium">
+                <span>Learn More</span>
+                <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </Section>
+  );
+};
 
 const ProcessSection = React.memo(({ theme }) => {
   const [hoveredIndex, setHoveredIndex] = useState(null);
