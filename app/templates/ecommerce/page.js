@@ -25,19 +25,19 @@ export default function EcommerceTemplate() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-[hsl(var(--background))]">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm">
+      <header className="bg-[hsl(var(--card))] shadow-[var(--shadow-sm)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <Link href="/" className="flex items-center text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+              <Link href="/" className="flex items-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors">
                 <ArrowLeft className="h-5 w-5 mr-2" />
                 Back to Home
               </Link>
             </div>
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-2xl font-luxury font-bold text-[hsl(var(--foreground))]">
                 E-commerce Excellence
               </h1>
             </div>
@@ -47,24 +47,24 @@ export default function EcommerceTemplate() {
       </header>
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-600 to-purple-700 text-white py-20">
+      <section className="bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(var(--accent))] text-[hsl(var(--primary-foreground))] py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h2 className="text-4xl md:text-6xl font-bold mb-6">
+            <h2 className="text-4xl md:text-6xl font-luxury font-bold mb-6">
               E-commerce Excellence
             </h2>
             <p className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto">
               A robust and scalable online store solution, designed to maximize sales and user experience.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/templates/ecommerce/demo" className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
+              <Link href="/templates/ecommerce/demo" className="bg-[hsl(var(--background))] text-[hsl(var(--primary))] px-8 py-3 rounded-lg font-semibold hover:bg-[hsl(var(--muted))] transition-colors">
                 View Live Demo
               </Link>
-              <Link href="/" className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors">
+              <Link href="/" className="border-2 border-[hsl(var(--primary-foreground))] text-[hsl(var(--primary-foreground))] px-8 py-3 rounded-lg font-semibold hover:bg-[hsl(var(--primary-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                 Get Started
               </Link>
             </div>
@@ -73,7 +73,7 @@ export default function EcommerceTemplate() {
       </section>
 
       {/* Navigation Tabs */}
-      <section className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <section className="bg-[hsl(var(--card))] border-b border-[hsl(var(--border))]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex space-x-8">
             {tabs.map((tab) => (
@@ -82,8 +82,8 @@ export default function EcommerceTemplate() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                    ? 'border-[hsl(var(--primary))] text-[hsl(var(--primary))]'
+                    : 'border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
                 }`}
               >
                 {tab.label}
@@ -103,35 +103,35 @@ export default function EcommerceTemplate() {
             className="grid md:grid-cols-2 gap-12 items-center"
           >
             <div>
-              <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">
+              <h3 className="text-3xl font-luxury font-bold text-[hsl(var(--foreground))] mb-6">
                 Transform Your Business with E-commerce Excellence
               </h3>
-              <p className="text-lg text-gray-600 dark:text-gray-400 mb-6">
+              <p className="text-lg text-[hsl(var(--muted-foreground))] mb-6">
                 Our E-commerce Excellence template is built for businesses ready to dominate the digital marketplace. 
                 With cutting-edge features, seamless user experience, and powerful analytics, you'll have everything 
                 needed to drive sales and grow your online presence.
               </p>
-              <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+              <p className="text-lg text-[hsl(var(--muted-foreground))] mb-8">
                 From product management to customer retention, every aspect is designed with conversion optimization 
                 in mind. Mobile-responsive, SEO-optimized, and scalable for your business growth.
               </p>
               <div className="flex flex-wrap gap-4">
-                <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-4 py-2 rounded-full text-sm font-medium">
+                <div className="bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] px-4 py-2 rounded-full text-sm font-medium">
                   Mobile-First Design
                 </div>
-                <div className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-4 py-2 rounded-full text-sm font-medium">
+                <div className="bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] px-4 py-2 rounded-full text-sm font-medium">
                   SEO Optimized
                 </div>
-                <div className="bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 px-4 py-2 rounded-full text-sm font-medium">
+                <div className="bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] px-4 py-2 rounded-full text-sm font-medium">
                   Payment Gateway Ready
                 </div>
               </div>
             </div>
-            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-8">
+            <div className="bg-[hsl(var(--muted))] rounded-lg p-8">
               <img 
                 src="/AetherDemo.png" 
                 alt="E-commerce Template Preview" 
-                className="w-full rounded-lg shadow-lg"
+                className="w-full rounded-lg shadow-[var(--shadow-lg)]"
               />
             </div>
           </motion.div>
@@ -143,7 +143,7 @@ export default function EcommerceTemplate() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
-            <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-12 text-center">
+            <h3 className="text-3xl font-luxury font-bold text-[hsl(var(--foreground))] mb-12 text-center">
               Powerful Features for Modern E-commerce
             </h3>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -153,15 +153,15 @@ export default function EcommerceTemplate() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                  className="bg-[hsl(var(--card))] p-6 rounded-lg shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] transition-shadow"
                 >
-                  <div className="text-blue-600 dark:text-blue-400 mb-4">
+                  <div className="text-[hsl(var(--primary))] mb-4">
                     {feature.icon}
                   </div>
-                  <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  <h4 className="text-xl font-semibold text-[hsl(var(--foreground))] mb-2">
                     {feature.title}
                   </h4>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-[hsl(var(--muted-foreground))]">
                     {feature.description}
                   </p>
                 </motion.div>
@@ -177,83 +177,83 @@ export default function EcommerceTemplate() {
             transition={{ duration: 0.5 }}
             className="text-center"
           >
-            <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-12">
+            <h3 className="text-3xl font-luxury font-bold text-[hsl(var(--foreground))] mb-12">
               Pricing Plans
             </h3>
             <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-              <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md">
-                <h4 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Starter</h4>
-                <div className="text-4xl font-bold text-blue-600 mb-6">$2,500</div>
+              <div className="bg-[hsl(var(--card))] p-8 rounded-lg shadow-[var(--shadow-md)]">
+                <h4 className="text-2xl font-luxury font-bold text-[hsl(var(--foreground))] mb-4">Starter</h4>
+                <div className="text-4xl font-luxury font-bold text-[hsl(var(--primary))] mb-6">$2,500</div>
                 <ul className="space-y-3 text-left mb-8">
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Basic product catalog
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Payment integration
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Mobile responsive
                   </li>
                 </ul>
-                <button className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                <button className="w-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] py-3 rounded-lg font-semibold hover:bg-[hsl(var(--primary-hover))] transition-colors">
                   Choose Starter
                 </button>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg border-2 border-blue-500 relative">
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-4 py-1 rounded-full text-sm font-medium">
+              <div className="bg-[hsl(var(--card))] p-8 rounded-lg shadow-[var(--shadow-lg)] border-2 border-[hsl(var(--primary))] relative">
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] px-4 py-1 rounded-full text-sm font-medium">
                   Most Popular
                 </div>
-                <h4 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Professional</h4>
-                <div className="text-4xl font-bold text-blue-600 mb-6">$4,500</div>
+                <h4 className="text-2xl font-luxury font-bold text-[hsl(var(--foreground))] mb-4">Professional</h4>
+                <div className="text-4xl font-luxury font-bold text-[hsl(var(--primary))] mb-6">$4,500</div>
                 <ul className="space-y-3 text-left mb-8">
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Everything in Starter
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Advanced analytics
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Customer reviews
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Inventory management
                   </li>
                 </ul>
-                <button className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                <button className="w-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] py-3 rounded-lg font-semibold hover:bg-[hsl(var(--primary-hover))] transition-colors">
                   Choose Professional
                 </button>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md">
-                <h4 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Enterprise</h4>
-                <div className="text-4xl font-bold text-blue-600 mb-6">$8,500</div>
+              <div className="bg-[hsl(var(--card))] p-8 rounded-lg shadow-[var(--shadow-md)]">
+                <h4 className="text-2xl font-luxury font-bold text-[hsl(var(--foreground))] mb-4">Enterprise</h4>
+                <div className="text-4xl font-luxury font-bold text-[hsl(var(--primary))] mb-6">$8,500</div>
                 <ul className="space-y-3 text-left mb-8">
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Everything in Professional
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Multi-vendor support
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Advanced SEO tools
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))] mr-3" />
                     Custom integrations
                   </li>
                 </ul>
-                <button className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                <button className="w-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] py-3 rounded-lg font-semibold hover:bg-[hsl(var(--primary-hover))] transition-colors">
                   Choose Enterprise
                 </button>
               </div>
@@ -268,23 +268,23 @@ export default function EcommerceTemplate() {
             transition={{ duration: 0.5 }}
             className="text-center"
           >
-            <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+            <h3 className="text-3xl font-luxury font-bold text-[hsl(var(--foreground))] mb-8">
               Live E-commerce Demo
             </h3>
-            <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+            <p className="text-lg text-[hsl(var(--muted-foreground))] mb-8">
               Experience our luxury e-commerce template in action. This demo showcases a complete 
               online store with product catalog, shopping cart, and elegant design.
             </p>
-            <div className="bg-gradient-to-br from-blue-600 to-purple-700 rounded-lg p-12 max-w-2xl mx-auto text-white">
+            <div className="bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(var(--accent))] rounded-lg p-12 max-w-2xl mx-auto text-[hsl(var(--primary-foreground))]">
               <div className="text-6xl mb-4">🛒</div>
               <h4 className="text-2xl font-bold mb-4">AETHER Luxury Store</h4>
-              <p className="text-lg mb-8 text-blue-100">
+              <p className="text-lg mb-8 text-[hsl(var(--primary-foreground))] opacity-80">
                 A sophisticated e-commerce experience with luxury products, 
                 smooth animations, and professional design.
               </p>
               <Link 
                 href="/templates/ecommerce/demo" 
-                className="inline-block bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+                className="inline-block bg-[hsl(var(--background))] text-[hsl(var(--primary))] px-8 py-4 rounded-lg font-semibold hover:bg-[hsl(var(--muted))] transition-colors"
               >
                 Launch Live Demo
               </Link>

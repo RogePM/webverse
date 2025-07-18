@@ -1,26 +1,105 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/*
+  Web Verse Digital Luxury Color Palette
+  -------------------------------------
+  Use these CSS variables for all backgrounds, text, borders, gradients, and shadows.
+  Example: background: hsl(var(--background)); color: hsl(var(--foreground));
+  Palette:
+    --background: 210 25% 98%;      // Clean white-blue #FAFBFC
+    --foreground: 222 47% 11%;      // Deep slate #1A202C
+    --card: 210 25% 95%;            // Light tech gray #F1F3F5
+    --primary: 217 91% 60%;         // Electric blue #3B82F6
+    --secondary: 210 25% 95%;       // Light tech gray
+    --accent: 199 89% 48%;          // Cyan accent #0EA5E9
+    --muted-foreground: 215 25% 27%; // Medium slate #4A5568
+    --tech-cyan: 199 89% 48%;       // Premium cyan #0EA5E9
+    --success-green: 142 71% 45%;   // Tech green #10B981
+    --electric-blue: 217 91% 60%;   // Electric blue #3B82F6
+    --gradient-luxury: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    --gradient-tech: linear-gradient(135deg, hsl(var(--tech-cyan)), hsl(var(--primary)));
+    --shadow-luxury: 0 10px 30px -10px hsl(var(--primary) / 0.15);
+    --shadow-tech: 0 8px 25px -8px hsl(var(--accent) / 0.2);
+    --shadow-electric: 0 12px 35px -12px hsl(var(--electric-blue) / 0.1);
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: 210 25% 98%;
+  --foreground: 222 47% 11%;
+  --card: 210 25% 95%;
+  --primary: 217 91% 60%;
+  --secondary: 210 25% 95%;
+  --accent: 199 89% 48%;
+  --muted-foreground: 215 25% 27%;
+  --tech-cyan: 199 89% 48%;
+  --success-green: 142 71% 45%;
+  --electric-blue: 217 91% 60%;
+  --gradient-luxury: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  --gradient-tech: linear-gradient(135deg, hsl(var(--tech-cyan)), hsl(var(--primary)));
+  --shadow-luxury: 0 10px 30px -10px hsl(var(--primary) / 0.15);
+  --shadow-tech: 0 8px 25px -8px hsl(var(--accent) / 0.2);
+  --shadow-electric: 0 12px 35px -12px hsl(var(--electric-blue) / 0.1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Force light theme - remove automatic dark mode detection */
+html {
+  color-scheme: light;
+  font-size: 15px; /* Slightly reduced for modern, premium look */
+  line-height: 1.7; /* More airy and digestible */
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  /* Refined sans-serif font stack for modern, premium look */
+  font-family: 'Helvetica Neue', 'San Francisco', Arial, system-ui, sans-serif;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* Hero Section Background */
+.hero {
+  background: white;
+  position: relative;
+  overflow: visible;
+  min-height: 60vh;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 60% 40%, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.18) 40%, transparent 80%);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.9;
+  animation: shimmer 6s infinite alternate;
+}
+
+@keyframes shimmer {
+  0% {background-position: 60% 40%; opacity: 0.7;}
+  100% {background-position: 40% 60%; opacity: 1;}
+}
+
+@keyframes hero-shimmer {
+  0% { background-position: 60% 40%; opacity: 0.7; }
+  100% { background-position: 40% 60%; opacity: 1; }
+}
+
+.animate-hero-shimmer {
+  animation: hero-shimmer 6s infinite alternate;
+}
+
+/* Remove all pseudo-elements and gradients for hero */
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-20px) rotate(120deg);
+  }
+  66% {
+    transform: translateY(10px) rotate(240deg);
+  }
 }
