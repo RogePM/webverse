@@ -24,8 +24,12 @@ module.exports = {
         mono: ['var(--font-geist-mono)', 'Fira Mono', 'Menlo', 'Monaco', 'monospace'],
         luxury: ['Playfair Display', 'serif'],
         body: ['Inter', 'sans-serif'],
+        antonio: ['var(--font-antonio)', 'sans-serif'],
+        inria: ['var(--font-inria-serif)', 'serif'],
+        inter: ['var(--font-inter)', 'sans-serif'],
+        inriaSerif: ['var(--font-inria-serif)', 'serif'],
       },
     },
   },
   plugins: [],
-} 
+}

@@ -1,16 +1,16 @@
 import "./globals.css";
-import { Geist, Geist_Mono } from "next/font/google";
 
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+
+
+
+
+
+
+
+
+
 
 export const metadata = {
   title: "Luminary Sites | Custom Web Development for NC Triad Businesses",
@@ -64,12 +64,12 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
         <link rel="icon" type="image/png" href="/actualyLogo.png" />
         <link rel="apple-touch-icon" href="/actualyLogo.png" />
       </head>
       <body
-        className="font-sans antialiased"
+        className="antialiased"
       >
         {children}
       </body>
