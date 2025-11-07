@@ -42,11 +42,11 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
           />
         )}
       </AnimatePresence>
-      
+
       {/* Sidebar */}
       <motion.aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col border-r bg-muted/30 transition-transform duration-300 ease-in-out',
+          'fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col border-r bg-white transition-transform duration-300 ease-in-out', // <-- solid
           'md:translate-x-0',
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
@@ -63,13 +63,13 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
             <X className="h-5 w-5" />
           </Button>
         </div>
-        
+
         <nav className="flex-1 space-y-2 overflow-y-auto p-4">
           {navItems.map((item) => (
             <NavItem key={item.name} item={item} />
           ))}
         </nav>
-        
+
         <div className="mt-auto border-t p-4">
           <nav className="space-y-2">
             <NavItem item={{ name: 'Settings', icon: Settings, view: 'Settings' }} />

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
+// import DashboardLayout from './dashboard-layout';
 import { DashboardHome } from '@/components/pages/dashboard-home';
 import { AddItemView } from '@/components/pages/add-item-view';
 import { PlaceholderView } from '@/components/pages/placeholder-view';

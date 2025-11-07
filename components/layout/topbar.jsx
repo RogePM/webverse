@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 export function TopBar({ activeView, onMenuClick }) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur-sm md:px-8">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b  px-4 backdrop-blur-sm md:px-8">
       <div className="flex items-center">
         <Button
           variant="ghost"

@@ -41,8 +41,8 @@ export function AddItemModal({ isOpen, onOpenChange, initialCategory = '' }) {
     <AnimatePresence>
       {isOpen && (
         <>
-          <DialogOverlay onClick={() => onOpenChange(false)} />
-          <DialogContent onClose={() => onOpenChange(false)} className="sm:max-w-md">
+          <DialogOverlay onClick={() => onOpenChange(false)}  className="fixed inset-0 bg-white/50 backdrop-blur-sm" />
+          <DialogContent onClose={() => onOpenChange(false)} className="sm:max-w-md bg-white text-foreground border border-border shadow-lg">
             <DialogHeader>
               <DialogTitle>Add New Item</DialogTitle>
               <DialogDescription>
@@ -51,7 +51,7 @@ export function AddItemModal({ isOpen, onOpenChange, initialCategory = '' }) {
             </DialogHeader>
             
             {/* Mode Toggle */}
-            <div className="grid grid-cols-2 gap-2 rounded-md bg-muted p-1">
+            <div className="grid grid-cols-2 gap-2 rounded-md bg-white p-1">
               <Button
                 variant={mode === 'manual' ? 'secondary' : 'ghost'}
                 size="sm"
@@ -73,7 +73,7 @@ export function AddItemModal({ isOpen, onOpenChange, initialCategory = '' }) {
 
             <form onSubmit={handleSubmit}>
               {mode === 'manual' ? (
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4 py-4 ">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="category" className="text-right">
                       Category
