@@ -3,7 +3,12 @@ module.exports = {
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    // Include app files but exclude backend folder to avoid node_modules scanning
+    './app/layout.{js,jsx,ts,tsx}',
+    './app/page.{js,jsx,ts,tsx}',
+    './app/globals.css',
+    './app/api/**/*.{js,ts,jsx,tsx}',
+    // Explicitly exclude app/backend to prevent node_modules scanning
   ],
   theme: {
     extend: {

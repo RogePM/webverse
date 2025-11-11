@@ -30,11 +30,12 @@ function CategoryCard({ item, onClick }) {
       onClick={onClick}
     >
       <Card>
-        <CardHeader className="items-center pb-4">
-          <item.icon className="h-10 w-10 text-primary" />
+        <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-base font-medium">{item.name}</CardTitle>
+          <item.icon className="h-5 w-5 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="text-center">
-          <CardTitle className="text-lg font-medium">{item.name}</CardTitle>
+        <CardContent>
+          {/* Empty content to match dashboard card structure */}
         </CardContent>
       </Card>
     </motion.div>
@@ -80,7 +81,7 @@ export function AddItemView() {
         variants={gridVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid grid-cols-1 gap-6 sm:grid-cols-1 lg:grid-cols-3"
       >
         {categories.map((item) => (
           <CategoryCard

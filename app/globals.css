@@ -2,36 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-    --background: 0 0% 90%;
-    /* near-white background */
-    --foreground: 222 20% 10%;
-    /* soft charcoal text */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
-    /* pure white cards */
-    --card-foreground: 222 20% 10%;
-    --primary: 210 10% 30%;
-    /* muted gray-blue for links/buttons */
-    --primary-foreground: 0 0% 98%;
-    --secondary: 220 14% 96%;
-    /* soft gray for UI surfaces */
-    --secondary-foreground: 222 20% 20%;
-    --accent: 45 60% 85%;
-    /* warm pale yellow accent (like Notion highlights) */
-    --accent-foreground: 222 20% 15%;
-    --muted: 220 15% 95%;
-    /* light gray background for muted sections */
-    --muted-foreground: 220 10% 40%;
-    --destructive: 0 65% 60%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 15% 90%;
-    --input: 220 15% 90%;
-    --ring: 210 10% 30%;
-    --success-green: 145 45% 45%;
-    /* calm green */
-    --electric-blue: 200 80% 60%;
-    /* subtle highlight option */
+    --card-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --tech-cyan: 180 100% 50%;
+    --success-green: 142 76% 36%;
+    --electric-blue: 217 91% 60%;
     --radius: 0.5rem;
+  }
 }
 
-/* Optional soft dark mode */
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}

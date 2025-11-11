@@ -37,7 +37,7 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.5 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/10 md:hidden"
+            className="fixed inset-0 z-40 bg-black/60 md:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
@@ -46,7 +46,7 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
       {/* Sidebar */}
       <motion.aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col border-r bg-white transition-transform duration-300 ease-in-out', // <-- solid
+          'fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col border-r bg-card transition-transform duration-300 ease-in-out',
           'md:translate-x-0',
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}

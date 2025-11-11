@@ -6,7 +6,9 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout';
 // import DashboardLayout from './dashboard-layout';
 import { DashboardHome } from '@/components/pages/dashboard-home';
 import { AddItemView } from '@/components/pages/add-item-view';
+import { RemoveItemView } from '@/components/pages/remove-item-view';
 import { PlaceholderView } from '@/components/pages/placeholder-view';
+import { InventoryView } from '@/components/pages/Full-inventory';
 
 export default function App() {
   const [activeView, setActiveView] = useState('Dashboard');
@@ -31,9 +33,9 @@ export default function App() {
       case 'Add Items':
         return <AddItemView />;
       case 'Remove Items':
-        return <PlaceholderView title="Remove Items" />;
+        return <RemoveItemView />;
       case 'View Inventory':
-        return <PlaceholderView title="View Inventory" />;
+        return <InventoryView />;
       case 'Recent Changes':
         return <PlaceholderView title="Recent Changes" />;
       case 'Calendar':
