@@ -6,8 +6,21 @@ import { PackageSearch, X, Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { navItems } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { createBrowserClient } from '@supabase/ssr';
 
 export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebarOpen }) {
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/';
+  };
+
+
+
   const NavItem = ({ item }) => {
     const isActive = activeView === item.view;
     return (
@@ -75,8 +88,8 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
             <NavItem item={{ name: 'Settings', icon: Settings, view: 'Settings' }} />
             <Button
               variant="ghost"
-              className="w-full justify-start text-muted-foreground"
-              onClick={() => console.log('Log out')}
+              className="w-full justify-start text-muted-foreground hover:bg-red-50 hover:text-red-600"
+              onClick={handleSignOut}
             >
               <LogOut className="mr-3 h-5 w-5" />
               Log out

@@ -21,6 +21,9 @@ router.get('/', async (request, response) => {
 // fetch recent changes 
 router.get('/changes/recent', async (request, response) => {
     try {
+        // If `userId` and/or `pantryId` are enabled on ChangeLog, you can populate
+        // them like: .populate('userId').populate('pantryId') to return extra info
+        // (uncomment the populate calls when you add those refs in the schema).
         const changes = await ChangeLog.find()
             .sort({ timestamp: -1 })
             .limit(50);
@@ -201,6 +204,10 @@ router.post('/', async (request, response) => {
             storageLocation: data.storageLocation || 'N/A',
             lastModified: new Date(),
         };
+        // Optional: store the user who added this item and the pantry id
+        // if the authentication and pantry collections are set up.
+        // newFoodItem.addedBy = request.user?._id;
+        // newFoodItem.pantryId = request.body.pantryId;
         
         // Add barcode if provided
         if (data.barcode && data.barcode.trim()) {
@@ -252,6 +259,27 @@ const logChange = async (actionType, item, changes = null) => {
     });
     await logEntry.save();
 };
+
+// NOTE: To track which user performed an action and which pantry the action
+// belongs to, you can update the log signature and pass those values from
+// route handlers. Example (commented) — enable when user & pantry models exist:
+//
+// const logChange = async (actionType, item, changes = null, { userId, pantryId } = {}) => {
+//   const logEntry = new ChangeLog({
+//     actionType,
+//     itemId: item._id,
+//     itemName: item.name,
+//     category: item.category,
+//     changes,
+//     previousQuantity: actionType === 'deleted' ? item.quantity : undefined,
+//     userId, // reference to `User` collection
+//     pantryId // reference to `FoodPantry` or similar
+//   });
+//   await logEntry.save();
+// };
+
+// And then pass the IDs when calling:
+// await logChange('added', foodItem, null, { userId: request.user?._id, pantryId: request.body.pantryId });
 
 
 export default router;
