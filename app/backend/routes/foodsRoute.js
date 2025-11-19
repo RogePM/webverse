@@ -1,6 +1,7 @@
 import express from 'express';
 import { FoodItem, BarcodeCache } from '../models/FoodItemModel.js';
 import { ChangeLog } from '../models/ChangeLogModel.js';
+import { ClientDistribution } from '../models/ClientDistributionModel.js';
 
 const router = express.Router();
 
@@ -21,9 +22,6 @@ router.get('/', async (request, response) => {
 // fetch recent changes 
 router.get('/changes/recent', async (request, response) => {
     try {
-        // If `userId` and/or `pantryId` are enabled on ChangeLog, you can populate
-        // them like: .populate('userId').populate('pantryId') to return extra info
-        // (uncomment the populate calls when you add those refs in the schema).
         const changes = await ChangeLog.find()
             .sort({ timestamp: -1 })
             .limit(50);
@@ -31,6 +29,137 @@ router.get('/changes/recent', async (request, response) => {
     } catch (error) {
         console.log(error.message);
         return response.status(500).send({ message: 'Error fetching changes' });
+    }
+});
+
+// NEW: Route for logging distributions
+router.post('/log-distribution', async (request, response) => {
+    try {
+        const { 
+            itemId, 
+            itemName, 
+            category, 
+            removedQuantity, 
+            unit,
+            reason, 
+            clientName, 
+            clientId 
+        } = request.body;
+
+        // Validate required fields
+        if (!itemName || !category || !removedQuantity || !reason || !clientName) {
+            return response.status(400).json({ 
+                message: 'Missing required fields: itemName, category, removedQuantity, reason, clientName' 
+            });
+        }
+
+        // Create client distribution record
+        const distribution = new ClientDistribution({
+            clientName: clientName.trim(),
+            clientId: clientId?.trim() || undefined,
+            itemName,
+            itemId: itemId || undefined,
+            category,
+            quantityDistributed: removedQuantity,
+            unit: unit || 'units',
+            reason,
+            distributionDate: new Date(),
+        });
+
+        await distribution.save();
+
+        // Also log in ChangeLog for timeline
+        const logEntry = new ChangeLog({
+            actionType: 'distributed',
+            itemId: itemId || undefined,
+            itemName,
+            category,
+            removedQuantity,
+            distributionReason: reason,
+            clientName: clientName.trim(),
+            clientId: clientId?.trim() || undefined,
+            unit: unit || 'units',
+        });
+
+        await logEntry.save();
+
+        return response.status(201).json({ 
+            message: 'Distribution logged successfully',
+            distribution 
+        });
+    } catch (error) {
+        console.error('Error logging distribution:', error);
+        return response.status(500).send({ 
+            message: 'Error logging distribution',
+            error: error.message 
+        });
+    }
+});
+
+// NEW: Get all client distributions
+router.get('/distributions', async (request, response) => {
+    try {
+        const distributions = await ClientDistribution.find()
+            .sort({ distributionDate: -1 })
+            .limit(100);
+        
+        return response.status(200).json({
+            count: distributions.length,
+            data: distributions
+        });
+    } catch (error) {
+        console.error('Error fetching distributions:', error);
+        return response.status(500).send({ message: 'Error fetching distributions' });
+    }
+});
+
+// NEW: Get distributions by client name
+router.get('/distributions/client/:name', async (request, response) => {
+    try {
+        const { name } = request.params;
+        const distributions = await ClientDistribution.find({
+            clientName: new RegExp(name, 'i')
+        }).sort({ distributionDate: -1 });
+        
+        return response.status(200).json({
+            count: distributions.length,
+            data: distributions
+        });
+    } catch (error) {
+        console.error('Error fetching client distributions:', error);
+        return response.status(500).send({ message: 'Error fetching client distributions' });
+    }
+});
+
+// NEW: Get distribution summary by client
+router.get('/distributions/summary', async (request, response) => {
+    try {
+        const summary = await ClientDistribution.aggregate([
+            {
+                $group: {
+                    _id: { clientName: '$clientName', clientId: '$clientId' },
+                    totalDistributions: { $sum: 1 },
+                    totalQuantity: { $sum: '$quantityDistributed' },
+                    lastDistribution: { $max: '$distributionDate' },
+                    items: { 
+                        $push: {
+                            itemName: '$itemName',
+                            quantity: '$quantityDistributed',
+                            date: '$distributionDate'
+                        }
+                    }
+                }
+            },
+            { $sort: { 'lastDistribution': -1 } }
+        ]);
+
+        return response.status(200).json({
+            count: summary.length,
+            data: summary
+        });
+    } catch (error) {
+        console.error('Error fetching distribution summary:', error);
+        return response.status(500).send({ message: 'Error fetching distribution summary' });
     }
 });
 
@@ -63,6 +192,7 @@ router.get('/barcode/:code', async (request, response) => {
         return response.status(500).send({ message: 'Error looking up barcode' });
     }
 });
+
 //Route for get food item by id
 router.get('/:id', async (request, response) => {
     try {
@@ -76,6 +206,7 @@ router.get('/:id', async (request, response) => {
         return response.status(500).send({ message: 'Error fetching food item' });
     }
 });
+
 //Route for update food item 
 router.put('/:id', async (request, response) => {
     try {
@@ -131,10 +262,12 @@ router.put('/:id', async (request, response) => {
         return response.status(500).send({ message: 'Error updating food item', error: error.message });
     }
 });
-//Route for delete food item
+
+// UPDATED: Route for delete food item with distribution tracking
 router.delete('/:id', async (request, response) => {
     try {
         const { id } = request.params;
+        const { reason, clientName, clientId, removedQuantity, unit } = request.query;
 
         const result = await FoodItem.findByIdAndDelete(id);
 
@@ -142,8 +275,29 @@ router.delete('/:id', async (request, response) => {
             return response.status(404).json({ message: 'Food item not found' });
         }
 
-        // Log deletion
-        await logChange('deleted', result);
+        // If client info provided, log distribution
+        if (clientName && clientName.trim()) {
+            const distribution = new ClientDistribution({
+                clientName: clientName.trim(),
+                clientId: clientId?.trim() || undefined,
+                itemName: result.name,
+                itemId: result._id,
+                category: result.category,
+                quantityDistributed: parseInt(removedQuantity) || result.quantity,
+                unit: unit || 'units',
+                reason: reason || 'deleted',
+            });
+            await distribution.save();
+        }
+
+        // Log deletion with metadata
+        await logChange('deleted', result, null, {
+            reason,
+            clientName,
+            clientId,
+            removedQuantity: removedQuantity || result.quantity,
+            unit
+        });
 
         return response.status(200).send({ message: 'Food item deleted successfully' });
     } catch (error) {
@@ -156,7 +310,7 @@ router.post('/', async (request, response) => {
     try {
         const data = request.body;
 
-        // Helper function to validate a food item (donor removed - not in form)
+        // Helper function to validate a food item
         const isValidItem = (item) =>
             item &&
             item.name &&
@@ -204,10 +358,6 @@ router.post('/', async (request, response) => {
             storageLocation: data.storageLocation || 'N/A',
             lastModified: new Date(),
         };
-        // Optional: store the user who added this item and the pantry id
-        // if the authentication and pantry collections are set up.
-        // newFoodItem.addedBy = request.user?._id;
-        // newFoodItem.pantryId = request.body.pantryId;
         
         // Add barcode if provided
         if (data.barcode && data.barcode.trim()) {
@@ -248,38 +398,23 @@ router.post('/', async (request, response) => {
     }
 });
 
-const logChange = async (actionType, item, changes = null) => {
+// UPDATED: logChange function with metadata support
+const logChange = async (actionType, item, changes = null, metadata = {}) => {
     const logEntry = new ChangeLog({
         actionType,
         itemId: item._id,
         itemName: item.name,
         category: item.category,
         changes,
-        previousQuantity: actionType === 'deleted' ? item.quantity : undefined
+        previousQuantity: actionType === 'deleted' ? item.quantity : undefined,
+        // Add distribution metadata
+        distributionReason: metadata.reason,
+        clientName: metadata.clientName,
+        clientId: metadata.clientId,
+        removedQuantity: metadata.removedQuantity,
+        unit: metadata.unit
     });
     await logEntry.save();
 };
-
-// NOTE: To track which user performed an action and which pantry the action
-// belongs to, you can update the log signature and pass those values from
-// route handlers. Example (commented) — enable when user & pantry models exist:
-//
-// const logChange = async (actionType, item, changes = null, { userId, pantryId } = {}) => {
-//   const logEntry = new ChangeLog({
-//     actionType,
-//     itemId: item._id,
-//     itemName: item.name,
-//     category: item.category,
-//     changes,
-//     previousQuantity: actionType === 'deleted' ? item.quantity : undefined,
-//     userId, // reference to `User` collection
-//     pantryId // reference to `FoodPantry` or similar
-//   });
-//   await logEntry.save();
-// };
-
-// And then pass the IDs when calling:
-// await logChange('added', foodItem, null, { userId: request.user?._id, pantryId: request.body.pantryId });
-
 
 export default router;

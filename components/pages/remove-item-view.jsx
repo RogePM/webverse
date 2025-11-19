@@ -35,6 +35,8 @@ const tableRowVariants = {
     transition: { type: 'spring', stiffness: 100, damping: 15 },
   },
 };
+const MotionTableBody = motion(TableBody);
+
 
 export function RemoveItemView() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -172,8 +174,9 @@ export function RemoveItemView() {
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody asChild>
-                    <motion.tbody
+                 
+                   
+                    <MotionTableBody
                       variants={tableContainerVariants}
                       initial="hidden"
                       animate="visible"
@@ -202,8 +205,8 @@ export function RemoveItemView() {
                         </TableCell>
                         </motion.tr>
                       ))}
-                    </motion.tbody>
-                  </TableBody>
+                    </MotionTableBody>
+                  {/* </TableBody> */}
                 </Table>
               </Card>
             </motion.div>

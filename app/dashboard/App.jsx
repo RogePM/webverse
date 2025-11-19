@@ -6,7 +6,7 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { DashboardHome } from '@/components/pages/dashboard-home';
 import { AddItemView } from '@/components/pages/add-item-view';
 import { RemoveItemView } from '@/components/pages/remove-item-view';
-import { PlaceholderView } from '@/components/pages/placeholder-view';
+import { RecentChangesView } from '@/components/pages/recent-changes-view';
 import { InventoryView } from '@/components/pages/Full-inventory';
 
 import { createBrowserClient } from '@supabase/ssr'
@@ -72,7 +72,7 @@ export default function App({ session: initialSession }) {
       case 'View Inventory':
         return <InventoryView />;
       case 'Recent Changes':
-        return <PlaceholderView title="Recent Changes" />;
+        return <RecentChangesView />;
       case 'Calendar':
         return <PlaceholderView title="Calendar" />;
       case 'Settings':

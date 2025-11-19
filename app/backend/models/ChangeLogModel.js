@@ -14,14 +14,14 @@ import mongoose from 'mongoose';
 //   // Optional: pantryId: ObjectId, // 'FoodPantry' collection
 // }
 const changeLogSchema = new mongoose.Schema({
-  actionType: { 
-    type: String, 
-    enum: ['added', 'updated', 'deleted'], 
-    required: true 
+  actionType: {
+    type: String,
+    enum: ['added', 'updated', 'deleted'],
+    required: true
   },
-  itemId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'FoodItem' 
+  itemId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'FoodItem'
   },
   // Optional: store the user that performed the action.
   // Uncomment when you have a user collection set up and want to track which
@@ -36,21 +36,32 @@ const changeLogSchema = new mongoose.Schema({
   //   type: mongoose.Schema.Types.ObjectId,
   //   ref: 'FoodPantry'
   // },
-  itemName: { 
-    type: String, 
-    required: true 
+  itemName: {
+    type: String,
+    required: true
   },
-  category: { 
-    type: String, 
-    required: true 
+  category: {
+    type: String,
+    required: true
   },
-  changes: { 
-    type: mongoose.Schema.Types.Mixed 
+  changes: {
+    type: mongoose.Schema.Types.Mixed
   },
-  previousQuantity: Number,
-  timestamp: { 
-    type: Date, 
-    default: Date.now 
+  previousQuantity: { type: Number },
+
+
+  // NEW: Distribution metadata
+  removedQuantity: { type: Number },
+  distributionReason: { type: String },
+  clientName: { type: String },
+  clientId: { type: String },
+  unit: { type: String },
+
+
+
+  timestamp: {
+    type: Date,
+    default: Date.now
   }
 });
 

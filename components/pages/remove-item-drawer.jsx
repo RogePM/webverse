@@ -105,7 +105,7 @@ export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) 
   const maxQuantity = currentItem ? currentItem.quantity : 100;
   // --- END MODIFIED LOGIC ---
 
-  const handleSubmit = async () => {
+ const handleSubmit = async () => {
     setMessage({ type: '', text: '' });
 
     // Validation
@@ -117,26 +117,31 @@ export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) 
       return;
     }
 
-    // --- MODIFIED LOGIC ---
     if (!currentItem) {
-      // Use currentItem
       setMessage({ type: 'error', text: 'Please select an item first' });
       return;
     }
-    // --- END MODIFIED LOGIC ---
 
     setIsSubmitting(true);
 
     try {
-      // --- MODIFIED LOGIC ---
-      // Use currentItem
       // Calculate new quantity
       const newQuantity = currentItem.quantity - removeQuantity;
 
       // If quantity becomes 0 or negative, delete the item
       if (newQuantity <= 0) {
-        // Delete item
-        const deleteResponse = await fetch(`/api/foods/${currentItem._id}`, {
+        // ✅ UPDATED: Include client metadata in delete request
+        const params = new URLSearchParams({
+          reason,
+          removedQuantity: removeQuantity.toString(),
+          unit,
+        });
+        
+        // Add optional client fields if filled
+        if (clientName.trim()) params.append('clientName', clientName.trim());
+        if (clientId.trim()) params.append('clientId', clientId.trim());
+
+        const deleteResponse = await fetch(`/api/foods/${currentItem._id}?${params.toString()}`, {
           method: 'DELETE',
         });
 
@@ -160,10 +165,27 @@ export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) 
             barcode: currentItem.barcode || undefined,
           }),
         });
-        // --- END MODIFIED LOGIC ---
 
         if (!updateResponse.ok) {
           throw new Error('Failed to update item');
+        }
+
+        // ✅ NEW: Log the partial removal with client info if provided
+        if (clientName.trim()) {
+          await fetch('/api/foods/log-distribution', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              itemId: currentItem._id,
+              itemName: currentItem.name,
+              category: currentItem.category,
+              removedQuantity: removeQuantity,
+              unit,
+              reason,
+              clientName: clientName.trim(),
+              clientId: clientId.trim() || undefined,
+            }),
+          });
         }
       }
 
