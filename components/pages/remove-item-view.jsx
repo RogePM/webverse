@@ -14,16 +14,16 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table';
+// Import the drawer
 import { RemoveItemDrawer } from './remove-item-drawer';
+// 1. Import Hook
+import { usePantry } from '@/components/providers/PantryProvider';
 
-// Animation variants
 const tableContainerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: {
-      staggerChildren: 0.05,
-    },
+    transition: { staggerChildren: 0.05 },
   },
 };
 
@@ -37,8 +37,10 @@ const tableRowVariants = {
 };
 const MotionTableBody = motion(TableBody);
 
-
 export function RemoveItemView() {
+  // 2. Get Pantry ID
+  const { pantryId } = usePantry();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -47,32 +49,41 @@ export function RemoveItemView() {
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef(null);
 
-  // Auto-focus search bar on page load
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
   // Fetch inventory from backend
-  useEffect(() => {
-    const fetchInventory = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/foods');
-        if (response.ok) {
-          const data = await response.json();
-          setInventory(data.data || []);
+  const fetchInventory = async () => {
+    if (!pantryId) return; // Safety check
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/foods', {
+        headers: {
+            // 3. Pass Header
+            'x-pantry-id': pantryId
         }
-      } catch (error) {
-        console.error('Error fetching inventory:', error);
-      } finally {
-        setIsLoading(false);
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setInventory(data.data || []);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchInventory();
-  }, []);
+  useEffect(() => {
+    // 4. Only fetch if ID exists
+    if (pantryId) {
+        fetchInventory();
+    }
+  }, [pantryId]);
 
-  // Effect to filter inventory based on search query
+  // Effect to filter inventory
   useEffect(() => {
     if (searchQuery.trim() === '') {
       setSearchResults([]);
@@ -96,23 +107,10 @@ export function RemoveItemView() {
 
   const handleItemRemoved = () => {
     // Refresh inventory after removal
-    const fetchInventory = async () => {
-      try {
-        const response = await fetch('/api/foods');
-        if (response.ok) {
-          const data = await response.json();
-          setInventory(data.data || []);
-          setSearchQuery(''); // Clear search
-        }
-      } catch (error) {
-        console.error('Error fetching inventory:', error);
-      }
-    };
-
     fetchInventory();
+    setSearchQuery(''); // Clear search
   };
 
-  // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -148,6 +146,7 @@ export function RemoveItemView() {
           size="lg"
           variant="outline"
           onClick={() => openDrawer(null)}
+          disabled={!pantryId} // Disable if not ready
         >
           <PlusCircle className="mr-2 h-5 w-5" />
           Quick Remove
@@ -174,20 +173,19 @@ export function RemoveItemView() {
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
-                 
-                   
-                    <MotionTableBody
-                      variants={tableContainerVariants}
-                      initial="hidden"
-                      animate="visible"
-                      className="divide-y divide-muted/50"
-                    >
-                      {searchResults.map((item) => (
-                        <motion.tr
-                          key={item._id}
-                          variants={tableRowVariants}
-                          className="transition-colors hover:bg-muted/50"
-                        >
+                  
+                  <MotionTableBody
+                    variants={tableContainerVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="divide-y divide-muted/50"
+                  >
+                    {searchResults.map((item) => (
+                      <motion.tr
+                        key={item._id}
+                        variants={tableRowVariants}
+                        className="transition-colors hover:bg-muted/50"
+                      >
                         <TableCell className="font-medium">
                           {item.name}
                         </TableCell>
@@ -203,10 +201,9 @@ export function RemoveItemView() {
                             Remove
                           </Button>
                         </TableCell>
-                        </motion.tr>
-                      ))}
-                    </MotionTableBody>
-                  {/* </TableBody> */}
+                      </motion.tr>
+                    ))}
+                  </MotionTableBody>
                 </Table>
               </Card>
             </motion.div>
@@ -239,4 +236,3 @@ export function RemoveItemView() {
     </>
   );
 }
-

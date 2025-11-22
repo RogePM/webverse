@@ -15,8 +15,13 @@ import {
   SheetDescription,
   SheetFooter,
 } from '@/components/ui/sheet';
+// 1. Import Hook
+import { usePantry } from '@/components/providers/PantryProvider';
 
 export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated }) {
+  // 2. Get Pantry ID
+  const { pantryId } = usePantry();
+
   const formatDateForInput = (isoString) => {
     if (!isoString) return new Date().toISOString().slice(0, 16);
     return new Date(isoString).toISOString().slice(0, 16);
@@ -63,6 +68,12 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
       return;
     }
 
+    // Safety check
+    if (!pantryId) {
+      setMessage({ type: 'error', text: 'Pantry ID missing. Refresh page.' });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -93,7 +104,11 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
 
       const response = await fetch(url, {
         method: method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            // 3. Pass Header
+            'x-pantry-id': pantryId
+        },
         body: JSON.stringify(payload),
       });
 
@@ -119,11 +134,16 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to remove this record completely?')) return;
+    if (!pantryId) return;
 
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/client-distributions?id=${client._id}`, {
         method: 'DELETE',
+        headers: {
+            // 4. Pass Header for Delete too
+            'x-pantry-id': pantryId
+        }
       });
 
       if (!response.ok) {
@@ -168,7 +188,6 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
 
             <div className="flex-1 py-6 overflow-y-auto px-1">
               <div className="grid gap-5">
-                
                 <div className="grid gap-2">
                     <Label htmlFor="clientName">Client Name <span className="text-red-500">*</span></Label>
                     <Input
@@ -212,13 +231,7 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
               </div>
             </div>
 
-            {/* UPDATED FOOTER: 
-               - Uses justify-between to separate Delete (left) from Actions (right) on Desktop.
-               - On Mobile (flex-col-reverse), Delete sits at the bottom, Actions on top.
-            */}
             <SheetFooter className="gap-3 sm:justify-between">
-               
-               {/* Delete Button */}
                {client ? (
                 <Button 
                     variant="destructive" 
@@ -231,23 +244,22 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
                     Delete
                 </Button>
               ) : (
-                <div /> /* Spacer to keep "Save" on the right if no delete button */
+                <div />
               )}
 
-              {/* Action Buttons (Side-by-side on mobile) */}
               <div className="flex gap-3 w-full sm:w-auto">
                 <Button 
                     variant="ghost" 
                     onClick={() => onOpenChange(false)} 
                     disabled={isSubmitting}
-                    className="flex-1 sm:flex-none" // flex-1 makes them equal width on mobile
+                    className="flex-1 sm:flex-none"
                 >
                     Cancel
                 </Button>
                 <Button 
                     onClick={handleSubmit} 
                     disabled={isSubmitting}
-                    className="flex-1 sm:flex-none" // flex-1 makes them equal width on mobile
+                    className="flex-1 sm:flex-none"
                 >
                     {isSubmitting ? 'Saving...' : (client ? 'Update' : 'Add')}
                 </Button>

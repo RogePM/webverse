@@ -2,20 +2,26 @@ import { NextResponse } from 'next/server';
 
 export async function GET(req) {
   try {
-    // FIX: Await request text to satisfy Next.js requirements
+    // 1. FIX: Keep this to satisfy Next.js stream requirements
     await req.text();
 
+    // 2. Get Pantry ID from the frontend request
+    const pantryId = req.headers.get('x-pantry-id');
+    if (!pantryId) {
+      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
+    }
+
+    // 3. Your Backend Logic
     const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    
-    // CORRECTED URL: Added '/foods' prefix
     const API_URL = `${BACKEND_URL}/foods/distributions`;
 
     const response = await fetch(API_URL, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'x-pantry-id': pantryId, // <--- CRITICAL: Forward the header
       },
-      cache: 'no-store' // Ensure we don't cache old data
+      cache: 'no-store'
     });
 
     if (!response.ok) {
@@ -36,15 +42,19 @@ export async function POST(req) {
   try {
     const data = await req.json();
 
+    const pantryId = req.headers.get('x-pantry-id');
+    if (!pantryId) {
+      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
+    }
+
     const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    
-    // CORRECTED URL: Added '/foods' prefix and pointing to 'log-distribution'
     const API_URL = `${BACKEND_URL}/foods/log-distribution`;
 
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-pantry-id': pantryId, // <--- Forward header
       },
       body: JSON.stringify(data),
     });
@@ -67,7 +77,11 @@ export async function PUT(req) {
   try {
     const data = await req.json();
     
-    // Extract ID from query string (e.g., ?id=123)
+    const pantryId = req.headers.get('x-pantry-id');
+    if (!pantryId) {
+      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
+    }
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
 
@@ -76,14 +90,13 @@ export async function PUT(req) {
     }
 
     const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    
-    // Pointing to the new backend route: /foods/distribution/:id
     const API_URL = `${BACKEND_URL}/foods/distribution/${id}`;
 
     const response = await fetch(API_URL, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'x-pantry-id': pantryId, // <--- Forward header
       },
       body: JSON.stringify(data),
     });
@@ -104,7 +117,14 @@ export async function PUT(req) {
 
 export async function DELETE(req) {
   try {
-    // Extract ID from query string
+    // Await text if needed for timing, just like GET
+    await req.text(); 
+
+    const pantryId = req.headers.get('x-pantry-id');
+    if (!pantryId) {
+      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
+    }
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
 
@@ -113,14 +133,13 @@ export async function DELETE(req) {
     }
 
     const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    
-    // Pointing to the new backend route: /foods/distribution/:id
     const API_URL = `${BACKEND_URL}/foods/distribution/${id}`;
 
     const response = await fetch(API_URL, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
+        'x-pantry-id': pantryId, // <--- Forward header
       },
     });
 

@@ -15,8 +15,9 @@ import {
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 
-// Ensure this path matches where you saved the form file
 import { ClientFormDrawer } from './Client-form'; 
+// 1. Import Context
+import { usePantry } from '@/components/providers/PantryProvider';
 
 const tableRowVariants = {
     hidden: { opacity: 0, y: 10 },
@@ -28,6 +29,9 @@ const tableRowVariants = {
 };
 
 export function ClientListView() {
+    // 2. Get Pantry ID
+    const { pantryId } = usePantry();
+
     const [searchQuery, setSearchQuery] = useState('');
     const [clients, setClients] = useState([]);
     const [filteredClients, setFilteredClients] = useState([]);
@@ -37,21 +41,29 @@ export function ClientListView() {
 
     const inputRef = useRef(null);
 
-    // Auto-focus search input on load
     useEffect(() => {
         inputRef.current?.focus();
-        fetchClients();
-    }, []);
+        // 3. Only fetch if ID exists
+        if (pantryId) {
+            fetchClients();
+        }
+    }, [pantryId]); // Add pantryId to dependency array
 
-    // Fetch clients from API
     const fetchClients = async () => {
+        // Safety check
+        if (!pantryId) return;
+
         setIsLoading(true);
         try {
-            const response = await fetch('/api/client-distributions');
+            const response = await fetch('/api/client-distributions', {
+                headers: {
+                    // 4. Pass Header
+                    'x-pantry-id': pantryId
+                }
+            });
             
             if (response.ok) {
                 const data = await response.json();
-                // Ensure we handle the { data: [...] } structure correctly
                 const clientList = data.data || [];
                 setClients(clientList);
                 setFilteredClients(clientList);
@@ -68,31 +80,27 @@ export function ClientListView() {
         }
     };
 
-    // Filter clients based on search
     useEffect(() => {
         const q = searchQuery.toLowerCase();
         const filtered = clients.filter(
             (client) =>
                 (client.clientName && client.clientName.toLowerCase().includes(q)) ||
                 (client.clientId && client.clientId.toLowerCase().includes(q)) ||
-                (client.itemName && client.itemName.toLowerCase().includes(q)) // Also search by item name!
+                (client.itemName && client.itemName.toLowerCase().includes(q))
         );
         setFilteredClients(filtered);
     }, [searchQuery, clients]);
 
-    // Open sheet to add new client
     const handleAddClient = () => {
         setSelectedClient(null); 
         setIsSheetOpen(true);
     };
 
-    // Open sheet to modify client
     const handleModify = (client) => {
         setSelectedClient(client);
         setIsSheetOpen(true);
     };
 
-    // After client update/create, refresh list and close sheet
     const handleUpdate = () => {
         setIsSheetOpen(false);
         fetchClients();
@@ -106,7 +114,7 @@ export function ClientListView() {
                     <h2 className="text-2xl font-bold tracking-tight">Client Directory</h2>
                     <p className="text-muted-foreground">View distribution history and logs.</p>
                 </div>
-                <Button onClick={handleAddClient}>
+                <Button onClick={handleAddClient} disabled={!pantryId}>
                     <UserPlus className="mr-2 h-4 w-4" />
                     Add New Record
                 </Button>
@@ -134,7 +142,7 @@ export function ClientListView() {
                     {searchQuery ? (
                         <p className="text-sm">Try adjusting your search terms.</p>
                     ) : (
-                        <Button variant="link" onClick={handleAddClient} className="mt-2">
+                        <Button variant="link" onClick={handleAddClient} className="mt-2" disabled={!pantryId}>
                             Add your first record
                         </Button>
                     )}
@@ -164,17 +172,12 @@ export function ClientListView() {
                                     exit="hidden"
                                     className="border-b transition-colors hover:bg-muted/50"
                                 >
-                                    {/* 1. Client ID */}
                                     <TableCell className="font-mono text-xs text-muted-foreground">
                                         {client.clientId || '—'}
                                     </TableCell>
-                                    
-                                    {/* 2. Name */}
                                     <TableCell className="font-medium">
                                         {client.clientName}
                                     </TableCell>
-                                    
-                                    {/* 3. Item Distributed (New Column) */}
                                     <TableCell>
                                         <div className="flex flex-col">
                                             <span className="font-medium">{client.itemName}</span>
@@ -183,15 +186,11 @@ export function ClientListView() {
                                             </span>
                                         </div>
                                     </TableCell>
-                                    
-                                    {/* 4. Distribution Date */}
                                     <TableCell>
                                         {client.distributionDate 
                                             ? new Date(client.distributionDate).toLocaleDateString() 
                                             : 'N/A'}
                                     </TableCell>
-                                    
-                                    {/* 5. Actions Button */}
                                     <TableCell className="text-right">
                                         <Button
                                             variant="ghost"
@@ -222,7 +221,6 @@ export function ClientListView() {
                                     </span>
                                 )}
                             </div>
-                            {/* Mobile Item Display */}
                             <div className="mt-2 text-sm">
                                 <p>
                                     <span className="font-medium">Received: </span>
@@ -242,12 +240,11 @@ export function ClientListView() {
                 ))}
             </div>
 
-            {/* Sheet for modifying inventory */}
             <ClientFormDrawer
                 isOpen={isSheetOpen}
                 onOpenChange={setIsSheetOpen}
-                client={selectedClient} // Fixed: Changed 'item' to 'client'
-                onClientUpdated={handleUpdate} // Fixed: Changed 'onItemUpdated' to 'onClientUpdated'
+                client={selectedClient}
+                onClientUpdated={handleUpdate}
             />
         </div>
     );

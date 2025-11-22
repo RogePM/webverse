@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Plus, Minus, Weight } from 'lucide-react';
+import { Plus, Minus, Weight, X } from 'lucide-react'; // Added X
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectItem } from '@/components/ui/select';
+import { Select, SelectItem } from '@/components/ui/select'; // Ensure this is the custom wrapper or native
 import { Toggle } from '@/components/ui/toggle';
 import {
   Sheet,
@@ -17,8 +17,13 @@ import {
   SheetDescription,
   SheetFooter,
 } from '@/components/ui/sheet';
+// 1. Import Hook
+import { usePantry } from '@/components/providers/PantryProvider';
 
 export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) {
+  // 2. Get Pantry ID
+  const { pantryId } = usePantry();
+
   const [removeQuantity, setRemoveQuantity] = useState(1);
   const [unit, setUnit] = useState('units');
   const [reason, setReason] = useState('distribution-individual');
@@ -27,23 +32,18 @@ export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  // --- NEW LOGIC (from remove-item-view) ---
-  // State to hold the item selected *inside* the drawer
+  // Internal Search Logic
   const [internalItem, setInternalItem] = useState(null);
-  // State for the drawer's own search functionality
   const [inventory, setInventory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [drawerSearchQuery, setDrawerSearchQuery] = useState('');
   const [drawerSearchResults, setDrawerSearchResults] = useState([]);
 
-  // Use the pre-selected item OR the internally-selected item
   const currentItem = item || internalItem;
-  // --- END NEW LOGIC ---
 
   // Reset state when drawer opens
   useEffect(() => {
     if (isOpen) {
-      // Reset all form fields
       setRemoveQuantity(1);
       setUnit('units');
       setReason('distribution-individual');
@@ -51,18 +51,18 @@ export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) 
       setClientId('');
       setMessage({ type: '', text: '' });
 
-      // --- NEW LOGIC ---
-      // Reset internal search
       setInternalItem(null);
       setDrawerSearchQuery('');
       setDrawerSearchResults([]);
 
-      // If in "Quick Remove" mode (no item prop), fetch inventory
-      if (!item) {
+      // If no item passed, fetch inventory for search
+      if (!item && pantryId) {
         const fetchInventory = async () => {
           setIsLoading(true);
           try {
-            const response = await fetch('/api/foods');
+            const response = await fetch('/api/foods', {
+              headers: { 'x-pantry-id': pantryId } // 3. Pass Header
+            });
             if (response.ok) {
               const data = await response.json();
               setInventory(data.data || []);
@@ -75,12 +75,10 @@ export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) 
         };
         fetchInventory();
       }
-      // --- END NEW LOGIC ---
     }
-  }, [isOpen, item]);
+  }, [isOpen, item, pantryId]);
 
-  // --- NEW LOGIC (from remove-item-view) ---
-  // Effect to filter inventory based on the drawer's search query
+  // Search Filter
   useEffect(() => {
     if (drawerSearchQuery.trim() === '') {
       setDrawerSearchResults([]);
@@ -91,98 +89,94 @@ export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) 
         invItem.name?.toLowerCase().includes(drawerSearchQuery.toLowerCase()) ||
         invItem.barcode?.includes(drawerSearchQuery)
     );
-    // Show top 5 results
     setDrawerSearchResults(filtered.slice(0, 5));
   }, [drawerSearchQuery, inventory]);
-  // --- END NEW LOGIC ---
 
   const handleQuantityChange = (amount) => {
     setRemoveQuantity((prev) => Math.max(1, prev + amount));
   };
 
-  // --- MODIFIED LOGIC ---
-  // Use currentItem instead of item
   const maxQuantity = currentItem ? currentItem.quantity : 100;
-  // --- END MODIFIED LOGIC ---
 
- const handleSubmit = async () => {
+  const handleSubmit = async () => {
     setMessage({ type: '', text: '' });
 
-    // Validation
+    // ... (Keep validation logic the same) ...
     if (removeQuantity <= 0 || removeQuantity > maxQuantity) {
-      setMessage({
-        type: 'error',
-        text: `Please enter a valid quantity (1-${maxQuantity})`,
-      });
+      setMessage({ type: 'error', text: `Please enter a valid quantity (1-${maxQuantity})` });
       return;
     }
-
     if (!currentItem) {
       setMessage({ type: 'error', text: 'Please select an item first' });
       return;
     }
+    if (!pantryId) return;
 
     setIsSubmitting(true);
 
     try {
-      // Calculate new quantity
       const newQuantity = currentItem.quantity - removeQuantity;
 
-      // If quantity becomes 0 or negative, delete the item
+      // Scenario 1: DELETE (Quantity goes to 0)
       if (newQuantity <= 0) {
-        // ✅ UPDATED: Include client metadata in delete request
         const params = new URLSearchParams({
           reason,
           removedQuantity: removeQuantity.toString(),
           unit,
         });
-        
-        // Add optional client fields if filled
         if (clientName.trim()) params.append('clientName', clientName.trim());
         if (clientId.trim()) params.append('clientId', clientId.trim());
 
         const deleteResponse = await fetch(`/api/foods/${currentItem._id}?${params.toString()}`, {
           method: 'DELETE',
+          headers: { 'x-pantry-id': pantryId },
         });
 
-        if (!deleteResponse.ok) {
-          throw new Error('Failed to remove item');
-        }
+        if (!deleteResponse.ok) throw new Error('Failed to remove item');
+
       } else {
-        // Update item quantity
+        // Scenario 2: UPDATE (Partial removal)
+
+        // Step A: Update the Inventory Item Quantity
         const updateResponse = await fetch(`/api/foods/${currentItem._id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
+            'x-pantry-id': pantryId,
           },
           body: JSON.stringify({
             name: currentItem.name,
             category: currentItem.category,
-            quantity: newQuantity,
+            quantity: newQuantity, // The new lower quantity
             expirationDate: currentItem.expirationDate,
             storageLocation: currentItem.storageLocation || 'N/A',
-            lastModified: new Date().toISOString(),
             barcode: currentItem.barcode || undefined,
           }),
         });
 
-        if (!updateResponse.ok) {
-          throw new Error('Failed to update item');
-        }
+        if (!updateResponse.ok) throw new Error('Failed to update item');
 
-        // ✅ NEW: Log the partial removal with client info if provided
-        if (clientName.trim()) {
+        // Step B: Log the Distribution manually
+        // Only log if there is a client name, OR if you want to track waste/usage without a client
+        if (clientName.trim() || reason) {
           await fetch('/api/foods/log-distribution', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-pantry-id': pantryId
+            },
             body: JSON.stringify({
               itemId: currentItem._id,
               itemName: currentItem.name,
               category: currentItem.category,
-              removedQuantity: removeQuantity,
+
+              // ✅ FIX: Map 'removedQuantity' to 'quantityDistributed' 
+              // This matches your ClientDistributionSchema!
+              quantityDistributed: removeQuantity,
+
               unit,
               reason,
-              clientName: clientName.trim(),
+              clientName: clientName.trim() || 'Unknown', // Ensure required field isn't empty
               clientId: clientId.trim() || undefined,
             }),
           });
@@ -191,7 +185,6 @@ export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) 
 
       setMessage({ type: 'success', text: 'Item removed successfully!' });
 
-      // Call callback to refresh inventory
       if (onItemRemoved) {
         setTimeout(() => {
           onItemRemoved();
@@ -204,84 +197,69 @@ export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) 
       }
     } catch (error) {
       console.error('Error removing item:', error);
-      setMessage({
-        type: 'error',
-        text: error.message || 'Failed to remove item. Please try again.',
-      });
+      setMessage({ type: 'error', text: error.message || 'Failed to remove item.' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  // --- NEW LOGIC ---
-  // When a user clicks a search result
   const handleSelectSearchResult = (selectedItem) => {
-    setInternalItem(selectedItem); // Set this as the item to remove
-    setDrawerSearchQuery(''); // Clear search
-    setDrawerSearchResults([]); // Clear results
+    setInternalItem(selectedItem);
+    setDrawerSearchQuery('');
+    setDrawerSearchResults([]);
   };
-  // --- END NEW LOGIC ---
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
           <SheetOverlay onClick={() => onOpenChange(false)} />
-          <SheetContent
-            onClose={() => onOpenChange(false)}
-            className="flex flex-col"
-            side="right"
-            open={isOpen}
-          >
-            <SheetHeader>
+          <SheetContent onClose={() => onOpenChange(false)} className="flex flex-col" side="right" open={isOpen}>
+
+            {/* Custom Close Button */}
+            <button
+              onClick={() => onOpenChange(false)}
+              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary"
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </button>
+
+            <SheetHeader className="pr-6">
               <SheetTitle>Remove Inventory Item</SheetTitle>
-              {/* --- MODIFIED LOGIC --- */}
-              {currentItem ? ( // Use currentItem
+              {currentItem ? (
                 <SheetDescription>
                   {currentItem.name} ({currentItem.category})
                   <br />
-                  Exp: {formatDate(currentItem.expirationDate)} • Available:{' '}
-                  {currentItem.quantity}
+                  Exp: {formatDate(currentItem.expirationDate)} • Available: {currentItem.quantity}
                 </SheetDescription>
               ) : (
                 <SheetDescription>
                   Manually remove an item from inventory.
                 </SheetDescription>
               )}
-              {/* --- END MODIFIED LOGIC --- */}
             </SheetHeader>
 
-            {/* Form Content */}
             <div className="flex-1 px-6 py-4 overflow-y-auto">
               <div className="grid gap-6">
-                {/* --- MODIFIED LOGIC --- */}
-                {/* Manual Item Search (only if no item pre-selected) */}
-                {!currentItem && ( // Use currentItem
+
+                {/* Search Bar (Only if no item pre-selected) */}
+                {!currentItem && (
                   <div className="grid gap-2">
                     <Label htmlFor="manual-search">Search for Item</Label>
                     <Input
                       id="manual-search"
                       placeholder="Type to search all inventory..."
-                      value={drawerSearchQuery} // Bind value
-                      onChange={(e) => setDrawerSearchQuery(e.target.value)} // Bind onChange
+                      value={drawerSearchQuery}
+                      onChange={(e) => setDrawerSearchQuery(e.target.value)}
                     />
-                    
-                    {/* --- NEW LOGIC --- */}
-                    {/* Render search results */}
-                    {isLoading && (
-                      <p className="text-xs text-muted-foreground">Loading...</p>
-                    )}
+                    {isLoading && <p className="text-xs text-muted-foreground">Loading...</p>}
                     {drawerSearchResults.length > 0 && (
                       <div className="mt-2 space-y-1 rounded-md border bg-muted/50 p-2">
                         {drawerSearchResults.map((result) => (
@@ -292,179 +270,96 @@ export function RemoveItemDrawer({ isOpen, onOpenChange, item, onItemRemoved }) 
                             onClick={() => handleSelectSearchResult(result)}
                           >
                             <span className="font-medium">{result.name}</span>
-                            <span className="text-muted-foreground">
-                              {' '}
-                              (Qty: {result.quantity})
-                            </span>
+                            <span className="text-muted-foreground"> (Qty: {result.quantity})</span>
                           </button>
                         ))}
                       </div>
                     )}
-                    {/* --- END NEW LOGIC --- */}
                   </div>
                 )}
-                {/* --- END MODIFIED LOGIC --- */}
-                
-                {/* --- NEW LOGIC --- */}
-                {/* Show form only if an item is selected */}
+
                 {currentItem && (
-                // --- END NEW LOGIC ---
                   <>
                     {/* Quantity Stepper */}
                     <div className="grid gap-2">
-                      <Label htmlFor="remove-quantity">
-                        Quantity to Remove
-                      </Label>
+                      <Label htmlFor="remove-quantity">Quantity to Remove</Label>
                       <div className="flex items-center space-x-2">
                         <Button
-                          variant="outline"
-                          size="icon"
+                          variant="outline" size="icon" type="button"
                           onClick={() => handleQuantityChange(-1)}
                           disabled={removeQuantity <= 1}
-                          type="button"
                         >
                           <Minus className="h-4 w-4" />
                         </Button>
                         <Input
-                          id="remove-quantity"
-                          type="number"
+                          id="remove-quantity" type="number"
                           value={removeQuantity}
                           onChange={(e) => {
                             const val = parseInt(e.target.value) || 1;
-                            setRemoveQuantity(
-                              Math.max(1, Math.min(val, maxQuantity))
-                            );
+                            setRemoveQuantity(Math.max(1, Math.min(val, maxQuantity)));
                           }}
                           className="w-20 text-center"
-                          min="1"
-                          max={maxQuantity}
+                          min="1" max={maxQuantity}
                         />
                         <Button
-                          variant="outline"
-                          size="icon"
+                          variant="outline" size="icon" type="button"
                           onClick={() => handleQuantityChange(1)}
                           disabled={removeQuantity >= maxQuantity}
-                          type="button"
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
                         <div className="flex rounded-md border border-input overflow-hidden h-9">
-                          <Toggle
-                            pressed={unit === 'units'}
-                            onClick={() => setUnit('units')}
-                            type="button"
-                            className="rounded-r-none border-r border-input data-[state=on]:bg-accent data-[state=on]:text-accent-foreground h-9 px-3 text-xs"
-                            size="sm"
-                          >
-                            Units
-                          </Toggle>
-                          <Toggle
-                            pressed={unit === 'pounds'}
-                            onClick={() => setUnit('pounds')}
-                            type="button"
-                            className="rounded-l-none data-[state=on]:bg-accent data-[state=on]:text-accent-foreground h-9 px-3 text-xs"
-                            size="sm"
-                          >
-                            <Weight className="mr-1 h-3.5 w-3.5" />
-                            Lbs
-                          </Toggle>
+                          <Toggle pressed={unit === 'units'} onClick={() => setUnit('units')} size="sm" className="rounded-r-none border-r">Units</Toggle>
+                          <Toggle pressed={unit === 'pounds'} onClick={() => setUnit('pounds')} size="sm" className="rounded-l-none"><Weight className="mr-1 h-3.5 w-3.5" /> Lbs</Toggle>
                         </div>
                       </div>
-                      {/* --- MODIFIED LOGIC --- */}
-                      {currentItem && ( // Use currentItem
-                        <p className="text-xs text-muted-foreground">
-                          Max available: {currentItem.quantity}
-                        </p>
-                      )}
-                      {/* --- END MODIFIED LOGIC --- */}
+                      <p className="text-xs text-muted-foreground">Max available: {currentItem.quantity}</p>
                     </div>
 
-                    {/* Reason Dropdown */}
+                    {/* Reason & Client Info */}
                     <div className="grid gap-2">
                       <Label htmlFor="remove-reason">Reason</Label>
-                      <Select
-                        id="remove-reason"
-                        name="remove-reason"
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                      >
-                        <SelectItem value="distribution-individual">
-                          Distributed to Individual
-                        </SelectItem>
-                        <SelectItem value="distribution-family">
-                          Distributed to Family
-                        </SelectItem>
-                        <SelectItem value="distribution-partner">
-                          Distributed to Partner
-                        </SelectItem>
-                        <SelectItem value="expired">Expired</SelectItem>
-                        <SelectItem value="damaged">Damaged</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </Select>
+                      {/* Use standard select for safety */}
+                      <div className="relative">
+                        <select
+                          id="remove-reason"
+                          value={reason}
+                          onChange={(e) => setReason(e.target.value)}
+                          className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                        >
+                          <option value="distribution-individual">Distributed to Individual</option>
+                          <option value="distribution-family">Distributed to Family</option>
+                          <option value="distribution-partner">Distributed to Partner</option>
+                          <option value="expired">Expired</option>
+                          <option value="damaged">Damaged</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
                     </div>
 
-                    {/* Client Name */}
                     <div className="grid gap-2">
-                      <Label htmlFor="client-name">
-                        Client Name (optional)
-                      </Label>
-                      <Input
-                        id="client-name"
-                        name="client-name"
-                        placeholder="e.g. Maria Lopez or Family #203"
-                        value={clientName}
-                        onChange={(e) => setClientName(e.target.value)}
-                      />
+                      <Label htmlFor="client-name">Client Name (optional)</Label>
+                      <Input id="client-name" placeholder="e.g. Maria Lopez" value={clientName} onChange={(e) => setClientName(e.target.value)} />
                     </div>
 
-                    {/* Client ID */}
                     <div className="grid gap-2">
                       <Label htmlFor="client-id">Client ID (optional)</Label>
-                      <Input
-                        id="client-id"
-                        name="client-id"
-                        placeholder="For organizations using registration IDs"
-                        value={clientId}
-                        onChange={(e) => setClientId(e.target.value)}
-                      />
+                      <Input id="client-id" placeholder="ID Number" value={clientId} onChange={(e) => setClientId(e.target.value)} />
                     </div>
                   </>
-                // --- NEW LOGIC ---
                 )}
-                {/* --- END NEW LOGIC --- */}
 
-                {/* Message Display */}
                 {message.text && (
-                  <div
-                    className={`text-sm p-2 rounded-md ${
-                      message.type === 'success'
-                        ? 'bg-green-50 text-green-700 border border-green-200'
-                        : 'bg-red-50 text-red-700 border border-red-200'
-                    }`}
-                  >
+                  <div className={`text-sm p-2 rounded-md ${message.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
                     {message.text}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Footer */}
             <SheetFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSubmit}
-                // --- MODIFIED LOGIC ---
-                disabled={isSubmitting || !currentItem} // Use currentItem
-                // --- END MODIFIED LOGIC ---
-              >
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
+              <Button type="button" onClick={handleSubmit} disabled={isSubmitting || !currentItem}>
                 {isSubmitting ? 'Removing...' : 'Confirm Remove'}
               </Button>
             </SheetFooter>

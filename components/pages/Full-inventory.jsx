@@ -16,9 +16,13 @@ import {
 import { Card } from '@/components/ui/card';
 import { InventoryFormBar } from '@/components/pages/InventoryForm.jsx';
 import { categories as CATEGORY_OPTIONS } from '@/lib/constants';
-
+// 1. Import Hook
+import { usePantry } from '@/components/providers/PantryProvider';
 
 export function InventoryView() {
+    // 2. Get Pantry ID
+    const { pantryId } = usePantry();
+
     const [searchQuery, setSearchQuery] = useState('');
     const [inventory, setInventory] = useState([]);
     const [filteredInventory, setFilteredInventory] = useState([]);
@@ -33,17 +37,27 @@ export function InventoryView() {
         return cat ? cat.name : value;
     };
 
-
-    // Auto-focus search input on load
     useEffect(() => {
         inputRef.current?.focus();
-    }, []);
+        // 3. Fetch on load if ID exists
+        if (pantryId) {
+            fetchInventory();
+        }
+    }, [pantryId]); // Depend on pantryId
 
     // Fetch inventory from API
     const fetchInventory = async () => {
+        if (!pantryId) return; // Safety check
+
         setIsLoading(true);
         try {
-            const response = await fetch('/api/foods');
+            const response = await fetch('/api/foods', {
+                headers: {
+                    // 4. Pass Header
+                    'x-pantry-id': pantryId
+                }
+            });
+
             if (response.ok) {
                 const data = await response.json();
                 const sortedData = data.data
@@ -66,10 +80,6 @@ export function InventoryView() {
         }
     };
 
-    useEffect(() => {
-        fetchInventory();
-    }, []);
-
     // Filter inventory based on search
     useEffect(() => {
         const q = searchQuery.toLowerCase();
@@ -82,24 +92,21 @@ export function InventoryView() {
         setFilteredInventory(filtered);
     }, [searchQuery, inventory]);
 
-    // Open sheet to modify item
     const handleModify = (item) => {
         setSelectedItem(item);
         setIsSheetOpen(true);
     };
 
-    // After item update, refresh inventory and close sheet
     const handleUpdate = () => {
         setIsSheetOpen(false);
         fetchInventory();
     };
 
-    // Helper to check if item is expiring soon
     const isExpiringSoon = (expirationDateObj) => {
         if (!expirationDateObj) return false;
         const now = new Date();
         const diffDays = (expirationDateObj - now) / (1000 * 60 * 60 * 24);
-        return diffDays <= 3; // highlight items expiring in 3 days or less
+        return diffDays <= 3; 
     };
 
     return (
@@ -209,7 +216,6 @@ export function InventoryView() {
                 })}
             </div>
 
-            {/* Sheet for modifying inventory */}
             <InventoryFormBar
                 isOpen={isSheetOpen}
                 onOpenChange={setIsSheetOpen}

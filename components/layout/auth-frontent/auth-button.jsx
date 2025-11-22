@@ -11,7 +11,7 @@ export default function AuthButton() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/dashboard`, // redirect after login
+       redirectTo: `${window.location.origin}/auth/callback`, // redirect after login, used to be to /dashboard
       },
     });
 
@@ -23,7 +23,7 @@ export default function AuthButton() {
       onClick={handleSignIn}
       className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
     >
-      Sign in with Google
+      Sign up with Google
     </button>
   );
 }

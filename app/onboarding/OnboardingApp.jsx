@@ -1,9 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-
-// --- ⚠️ MOCK SUPABASE CLIENT (FOR PREVIEW ONLY) ---
-// In your real app, replace this with: 
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from "next/navigation";
 
@@ -177,6 +174,9 @@ export default function OnboardingWizard() {
   const [intent, setIntent] = useState(null); // 'create' | 'join'
   const [plan, setPlan] = useState('medium');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // NEW: Session Loading State
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
 
   // Session State
   const [session, setSession] = useState(null);
@@ -187,7 +187,7 @@ export default function OnboardingWizard() {
   const [profileData, setProfileData] = useState({ fullName: '', role: 'volunteer', phone: '' });
   const [joinCode, setJoinCode] = useState('');
 
-  // Supabase Client (Mocked for now)
+  // Supabase Client
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -196,10 +196,15 @@ export default function OnboardingWizard() {
   useEffect(() => {
     const fetchSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/'); // Kick out if not logged in
+        return;
+      }
       setSession(session);
+      setIsSessionLoading(false);
     };
     fetchSession();
-  }, [supabase]);
+  }, [supabase, router]);
 
   // Navigation
   const nextStep = () => setStep(prev => prev + 1);
@@ -209,15 +214,19 @@ export default function OnboardingWizard() {
   const handlePersonalSubmit = (e) => { e.preventDefault(); nextStep(); };
   const handleDetailsSubmit = (e) => { e.preventDefault(); nextStep(); };
 
-  // CREATE FLOW: Finalize Creation (Replaces Payment)
+  // CREATE FLOW: Finalize Creation
   const handleFinalizeCreation = async () => {
+    if (!session?.user?.id) {
+      alert("Error: No user session found. Please log in again.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // 1. Generate Code
       const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-      // 2. Insert Pantry
+      // 1. Insert Pantry
       const { data: pantryData, error: pantryError } = await supabase
         .from('food_pantries')
         .insert([{
@@ -226,18 +235,20 @@ export default function OnboardingWizard() {
           description: createData.description,
           plan: plan,
           join_code: generatedCode
-        }]);
+        }])
+        .select()
+        .single();
 
       if (pantryError) throw pantryError;
 
-      // 3. Insert Admin Profile
+      // 2. Insert Admin Profile
       const { error: profileError } = await supabase
         .from('user_profiles')
         .insert([{
-          user_id: session?.user?.id || 'mock-id',
+          user_id: session.user.id, // Use REAL ID
           name: profileData.fullName || 'Admin',
           role: 'admin',
-          pantry_id: pantryData?.pantry_id,
+          pantry_id: pantryData.pantry_id,
           phone: profileData.phone
         }]);
 
@@ -247,10 +258,7 @@ export default function OnboardingWizard() {
       setStep(5); // Go to Success
     } catch (err) {
       console.error(err);
-      // Fallback for demo
-      const fallbackCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      setCreateData(prev => ({ ...prev, generatedCode: fallbackCode }));
-      setStep(5);
+      alert("Failed to create pantry: " + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -263,23 +271,26 @@ export default function OnboardingWizard() {
     try {
       const { data, error } = await supabase
         .from('food_pantries')
-        .select('pantry_id, name, address')
+        .select('pantry_id, name, address') // Ensure we fetch ID
         .eq('join_code', joinData.code)
         .single();
 
-      if (error || !data) throw new Error('Invalid code');
+      if (error || !data) {
+        alert('Invalid code. Please try again.');
+        setIsLoading(false);
+        return;
+      }
 
       setJoinData(prev => ({
         ...prev,
         pantryName: data.name,
         address: data.address,
-        pantryId: data.pantry_id
+        pantryId: data.pantry_id // Map snake_case to camelCase
       }));
       nextStep();
     } catch (err) {
-      // Demo fallback
-      setJoinData(prev => ({ ...prev, pantryName: 'Downtown Food Bank', address: '123 Market St' }));
-      nextStep();
+      console.error(err);
+      alert('Error verifying code.');
     } finally {
       setIsLoading(false);
     }
@@ -288,15 +299,28 @@ export default function OnboardingWizard() {
   // JOIN FLOW: Finalize Join
   const handleFinalJoin = async (e) => {
     e.preventDefault();
+    
+    // 1. Session Check
+    if (!session?.user?.id) {
+        alert("Error: No user session found. Please log in again.");
+        return;
+    }
+
+    // 2. Pantry ID Safety Check
+    if (!joinData.pantryId) {
+        alert("Error: Pantry ID is missing. Please go back and enter the code again.");
+        return;
+    }
+
     setIsLoading(true);
     try {
       const { error } = await supabase
         .from('user_profiles')
         .insert([{
-          user_id: session?.user?.id || 'mock-id',
+          user_id: session.user.id, // Use REAL ID
           name: profileData.fullName,
           role: profileData.role,
-          pantry_id: joinData.pantryId,
+          pantry_id: joinData.pantryId, // Use validated ID
           phone: profileData.phone
         }]);
 
@@ -304,7 +328,7 @@ export default function OnboardingWizard() {
       setStep(5); // Success
     } catch (err) {
       console.error(err);
-      setStep(5);
+      alert("Failed to join pantry: " + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -535,6 +559,14 @@ export default function OnboardingWizard() {
   );
 
   // --- LAYOUT ---
+
+  if (isSessionLoading) {
+    return (
+        <div className="min-h-screen w-full flex items-center justify-center bg-white">
+            <p className="text-gray-500 animate-pulse">Verifying session...</p>
+        </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full flex flex-col font-sans bg-white selection:bg-gray-900 selection:text-white overflow-y-auto">

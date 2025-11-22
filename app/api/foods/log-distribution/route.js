@@ -1,17 +1,29 @@
+import { NextResponse } from 'next/server';
+
 export async function POST(request) {
   try {
+    // 1. Get Pantry ID from the Frontend request
+    const pantryId = request.headers.get('x-pantry-id');
+
+    // 2. Validation: If frontend didn't send it, stop here.
+    if (!pantryId) {
+      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
+    }
+
     const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
     const API_URL = `${BACKEND_URL}/foods/log-distribution`;
 
-    // Get the request body
     const body = await request.json();
 
     console.log('Proxying distribution log to backend:', body);
 
+    // 3. Call the Backend
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // 4. CRITICAL FIX: Forward the header!
+        'x-pantry-id': pantryId, 
       },
       body: JSON.stringify(body),
     });
@@ -21,28 +33,17 @@ export async function POST(request) {
         message: 'Failed to log distribution' 
       }));
       console.error('Backend error:', errorData);
-      return new Response(
-        JSON.stringify(errorData),
-        { status: response.status, headers: { 'Content-Type': 'application/json' } }
-      );
+      return NextResponse.json(errorData, { status: response.status });
     }
 
     const result = await response.json();
-    console.log('Distribution logged successfully:', result);
-    
-    return new Response(
-      JSON.stringify(result),
-      { status: 201, headers: { 'Content-Type': 'application/json' } }
-    );
+    return NextResponse.json(result, { status: 201 });
 
   } catch (error) {
     console.error('Error in log-distribution POST route:', error);
-    return new Response(
-      JSON.stringify({ 
-        message: 'An unexpected error occurred',
-        error: error.message 
-      }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    return NextResponse.json({ 
+      message: 'An unexpected error occurred',
+      error: error.message 
+    }, { status: 500 });
   }
 }

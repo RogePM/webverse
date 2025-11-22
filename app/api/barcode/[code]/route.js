@@ -2,6 +2,17 @@ export async function GET(req, { params }) {
   try {
     const { code } = params;
 
+    // 1. NEW: Get the Pantry ID from the incoming request headers
+    const pantryId = req.headers.get('x-pantry-id');
+
+    // 2. NEW: Validation - If frontend didn't send it, stop here.
+    if (!pantryId) {
+      return new Response(
+        JSON.stringify({ message: 'Pantry ID is required' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (!code) {
       return new Response(
         JSON.stringify({ message: 'Barcode code is required' }),
@@ -9,7 +20,7 @@ export async function GET(req, { params }) {
       );
     }
 
-    // Backend API URL
+    // 3. KEEPING YOUR URL LOGIC
     const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
     const API_URL = `${BACKEND_URL}/foods/barcode/${code}`;
 
@@ -17,6 +28,8 @@ export async function GET(req, { params }) {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        // 4. FORWARD THE HEADER TO THE BACKEND
+        'x-pantry-id': pantryId, 
       },
     });
 
@@ -41,7 +54,3 @@ export async function GET(req, { params }) {
     );
   }
 }
-
-
-
-

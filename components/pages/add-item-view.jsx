@@ -2,11 +2,14 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { PlusSquare } from 'lucide-react';
+import { PlusSquare, Loader2 } from 'lucide-react'; // Added Loader2
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { AddItemModal } from './add-item-modal';
+// 1. Import the Modal (ensure path matches your file structure)
+import { AddItemModal } from './add-item-modal'; 
 import { categories } from '@/lib/constants';
+// 2. Import Context
+import { usePantry } from '@/components/providers/PantryProvider';
 
 function CategoryCard({ item, onClick }) {
   const cardVariants = {
@@ -43,6 +46,9 @@ function CategoryCard({ item, onClick }) {
 }
 
 export function AddItemView() {
+  // 3. Get Loading State
+  const { isLoading: isPantryLoading } = usePantry();
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
 
@@ -60,6 +66,16 @@ export function AddItemView() {
     setSelectedCategory(categoryValue);
     setIsModalOpen(true);
   };
+
+  // 4. Loading State (Prevents interaction before Pantry ID is ready)
+  if (isPantryLoading) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center space-y-4 p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="text-muted-foreground">Loading organization data...</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -94,4 +110,3 @@ export function AddItemView() {
     </>
   );
 }
-
