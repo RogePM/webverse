@@ -9,6 +9,7 @@ module.exports = {
     './app/page.{js,jsx,ts,tsx}',
     './app/globals.css',
     './app/api/**/*.{js,ts,jsx,tsx}',
+    './app/onboarding/**/*.{js,ts,jsx,tsx}',
     // Explicitly exclude app/backend to prevent node_modules scanning
   ],
   theme: {

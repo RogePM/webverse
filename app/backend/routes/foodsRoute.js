@@ -96,6 +96,58 @@ router.post('/log-distribution', async (request, response) => {
     }
 });
 
+// NEW: Update a Client Distribution Record
+// ==========================================
+router.put('/distribution/:id', async (request, response) => {
+    try {
+        const { id } = request.params;
+        const { clientName, clientId, distributionDate } = request.body;
+
+        const result = await ClientDistribution.findByIdAndUpdate(
+            id,
+            { 
+                clientName, 
+                clientId, 
+                distributionDate 
+            },
+            { new: true } // Return the updated document
+        );
+
+        if (!result) {
+            return response.status(404).json({ message: 'Distribution record not found' });
+        }
+
+        return response.status(200).json({ 
+            message: 'Record updated successfully', 
+            data: result 
+        });
+
+    } catch (error) {
+        console.error('Error updating distribution:', error);
+        return response.status(500).send({ message: 'Error updating record', error: error.message });
+    }
+});
+
+// ==========================================
+// NEW: Delete a Client Distribution Record
+// ==========================================
+router.delete('/distribution/:id', async (request, response) => {
+    try {
+        const { id } = request.params;
+
+        const result = await ClientDistribution.findByIdAndDelete(id);
+
+        if (!result) {
+            return response.status(404).json({ message: 'Distribution record not found' });
+        }
+
+        return response.status(200).json({ message: 'Record deleted successfully' });
+
+    } catch (error) {
+        console.error('Error deleting distribution:', error);
+        return response.status(500).send({ message: 'Error deleting record', error: error.message });
+    }
+});
 // NEW: Get all client distributions
 router.get('/distributions', async (request, response) => {
     try {

@@ -8,6 +8,7 @@ import { AddItemView } from '@/components/pages/add-item-view';
 import { RemoveItemView } from '@/components/pages/remove-item-view';
 import { RecentChangesView } from '@/components/pages/recent-changes-view';
 import { InventoryView } from '@/components/pages/Full-inventory';
+import { ClientListView } from '@/components/pages/ClientDirectory';
 
 import { createBrowserClient } from '@supabase/ssr'
 
@@ -73,8 +74,8 @@ export default function App({ session: initialSession }) {
         return <InventoryView />;
       case 'Recent Changes':
         return <RecentChangesView />;
-      case 'Calendar':
-        return <PlaceholderView title="Calendar" />;
+      case 'View Clients':
+        return <ClientListView />;
       case 'Settings':
         return <PlaceholderView title="Settings" />;
       default:
@@ -101,7 +102,7 @@ export default function App({ session: initialSession }) {
             <p className="text-sm text-green-600 font-medium">
               ✓ Signed in as {session?.user?.email}
             </p>
-           
+
           </div>
 
           <AnimatePresence mode="wait">

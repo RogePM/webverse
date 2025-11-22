@@ -1,7 +1,7 @@
 // app/dashboard/page.js (SERVER COMPONENT)
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import App from './App'
+import App from './page'
 
 export default async function DashboardPage() {
   const cookieStore = await cookies()
