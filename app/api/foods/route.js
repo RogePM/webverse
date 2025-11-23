@@ -1,86 +1,100 @@
 import { NextResponse } from 'next/server';
+import connectDB from '@/lib/db';
+import { FoodItem, BarcodeCache } from '@/lib/models/FoodItemModel';
+import { ChangeLog } from '@/lib/models/ChangeLogModel';
 
+// --- Helper Function: Log Changes Directly ---
+const logChange = async (actionType, item, changes = null, metadata = {}, pantryId) => {
+  try {
+    await ChangeLog.create({
+      pantryId,
+      actionType,
+      itemId: item._id,
+      itemName: item.name,
+      category: item.category,
+      changes,
+      distributionReason: metadata.reason,
+      clientName: metadata.clientName,
+      clientId: metadata.clientId,
+      removedQuantity: metadata.removedQuantity,
+      unit: metadata.unit,
+      timestamp: new Date()
+    });
+  } catch (e) {
+    console.error("Failed to log change:", e);
+  }
+};
+
+// --- GET: Fetch Inventory ---
 export async function GET(req) {
   try {
-    // 1. Get Pantry ID from header
     const pantryId = req.headers.get('x-pantry-id');
     
     if (!pantryId) {
       return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
     }
 
-    // 2. Backend Config
-    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    const API_URL = `${BACKEND_URL}/foods`;
+    // 1. Connect to DB Directly
+    await connectDB();
 
-    // 3. Forward Request to Express
-    const response = await fetch(API_URL, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-pantry-id': pantryId, // Forward the ID
-      },
-      cache: 'no-store'
-    });
+    // 2. Query DB (No fetch to localhost:5555!)
+    const foods = await FoodItem.find({ pantryId });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to fetch items' }));
-      return NextResponse.json(errorData, { status: response.status });
-    }
-
-    const result = await response.json();
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json({ count: foods.length, data: foods });
 
   } catch (error) {
-    console.error('Error in foods GET route:', error);
+    console.error('Database Error:', error);
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
   }
 }
 
+
+// --- POST: Add Item ---
 export async function POST(req) {
   try {
-    // 1. Parse Body (Only for POST)
     const data = await req.json();
-
-    // 2. Get Pantry ID
     const pantryId = req.headers.get('x-pantry-id');
+
     if (!pantryId) {
       return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
     }
 
-    // 3. Validate Fields
     if (!data.name || !data.category || !data.quantity) {
       return NextResponse.json({ message: 'Please provide Name, Category, and Quantity' }, { status: 400 });
     }
 
-    // 4. Backend Config
-    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    const API_URL = `${BACKEND_URL}/foods`;
+    await connectDB();
 
-    // 5. Forward Request
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-pantry-id': pantryId,
-      },
-      body: JSON.stringify({
-        ...data,
-        storageLocation: data.storageLocation || 'N/A',
-        barcode: data.barcode || undefined,
-      }),
-    });
+    const newItemData = {
+      ...data,
+      pantryId, // Auto-assign ID
+      storageLocation: data.storageLocation || 'N/A',
+      barcode: data.barcode?.trim() || undefined,
+      lastModified: new Date(),
+    };
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to add item' }));
-      return NextResponse.json(errorData, { status: response.status });
+    // 1. Create Item Directly
+    const foodItem = await FoodItem.create(newItemData);
+
+    // 2. Cache Barcode (if exists)
+    if (newItemData.barcode) {
+      await BarcodeCache.findOneAndUpdate(
+        { barcode: newItemData.barcode, pantryId },
+        { ...newItemData, pantryId },
+        { upsert: true, new: true }
+      );
     }
 
-    const result = await response.json();
-    return NextResponse.json(result, { status: 201 });
+    // 3. Log Change
+    await logChange('added', foodItem, null, {}, pantryId);
+
+    return NextResponse.json(foodItem, { status: 201 });
 
   } catch (error) {
-    console.error('Error in foods POST route:', error);
+    console.error('Database Error:', error);
+    if (error.code === 11000) {
+        return NextResponse.json({ message: 'Barcode already exists in this pantry' }, { status: 400 });
+    }
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
   }
 }

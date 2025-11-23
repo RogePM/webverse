@@ -1,56 +1,49 @@
+import { NextResponse } from 'next/server';
+import connectDB from '@/lib/db';
+import { FoodItem, BarcodeCache } from '@/lib/models/FoodItemModel';
+
 export async function GET(req, { params }) {
   try {
-    const { code } = params;
+    // 1. Await Params (Next.js 15 requirement)
+    const { code } = await params;
 
-    // 1. NEW: Get the Pantry ID from the incoming request headers
+    // 2. Get Pantry ID from Header
     const pantryId = req.headers.get('x-pantry-id');
-
-    // 2. NEW: Validation - If frontend didn't send it, stop here.
     if (!pantryId) {
-      return new Response(
-        JSON.stringify({ message: 'Pantry ID is required' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
     }
 
     if (!code) {
-      return new Response(
-        JSON.stringify({ message: 'Barcode code is required' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+      return NextResponse.json({ message: 'Barcode is required' }, { status: 400 });
     }
 
-    // 3. KEEPING YOUR URL LOGIC
-    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    const API_URL = `${BACKEND_URL}/foods/barcode/${code}`;
+    // 3. Connect to DB Directly
+    await connectDB();
 
-    const response = await fetch(API_URL, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        // 4. FORWARD THE HEADER TO THE BACKEND
-        'x-pantry-id': pantryId, 
-      },
-    });
+    // 4. Smart Lookup Logic
+    // First, check the Barcode Cache (Fastest)
+    let cached = await BarcodeCache.findOne({ barcode: code, pantryId });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to lookup barcode' }));
-      return new Response(
-        JSON.stringify(errorData),
-        { status: response.status, headers: { 'Content-Type': 'application/json' } }
-      );
+    // Second, if not in cache, check if we already have this item in our main inventory
+    // This fixes the "I added it but scanning doesn't find it" bug
+    if (!cached) {
+      const existingItem = await FoodItem.findOne({ barcode: code, pantryId });
+      if (existingItem) {
+        // If found in inventory, return it as if it were cached
+        cached = existingItem;
+      }
     }
 
-    const result = await response.json();
-    return new Response(
-      JSON.stringify(result),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
+    // 5. Return Result
+    if (cached) {
+      return NextResponse.json({ found: true, data: cached });
+    }
+
+    // Not found (return 200 so frontend handles it gracefully, not as an error)
+    return NextResponse.json({ found: false, data: null });
+
   } catch (error) {
-    console.error('Error in barcode API route:', error);
-    return new Response(
-      JSON.stringify({ message: 'An unexpected error occurred' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    console.error('Barcode Lookup Error:', error);
+    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }

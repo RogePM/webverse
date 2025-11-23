@@ -11,6 +11,7 @@ import { InventoryView } from '@/components/pages/Full-inventory';
 import { ClientListView } from '@/components/pages/ClientDirectory';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { SettingsView } from '@/components/pages/settings-view';
+import { DistributionView } from '@/components/pages/distribution-view';
 
 export default function DashboardClientApp() {
   // State only tracks the View, not the Session (Server handles that)
@@ -52,7 +53,7 @@ export default function DashboardClientApp() {
     switch (activeView) {
       case 'Dashboard': return <DashboardHome setActiveView={setActiveView} />;
       case 'Add Items': return <AddItemView />;
-      case 'Remove Items': return <RemoveItemView />;
+      case 'Remove Items': return <DistributionView/>;
       case 'View Inventory': return <InventoryView />;
       case 'Recent Changes': return <RecentChangesView />;
       case 'View Clients': return <ClientListView />;

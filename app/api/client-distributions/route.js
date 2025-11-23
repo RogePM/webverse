@@ -1,158 +1,137 @@
 import { NextResponse } from 'next/server';
+import connectDB from '@/lib/db';
+import { ClientDistribution } from '@/lib/models/ClientDistributionModel';
+import { ChangeLog } from '@/lib/models/ChangeLogModel';
 
+// --- Helper: Log Changes ---
+const logChange = async (actionType, item, changes = null, metadata = {}, pantryId) => {
+  try {
+    await ChangeLog.create({
+      pantryId,
+      actionType,
+      itemId: item._id,
+      itemName: item.name,
+      category: item.category,
+      changes,
+      // Metadata
+      distributionReason: metadata.reason,
+      clientName: metadata.clientName,
+      clientId: metadata.clientId,
+      removedQuantity: metadata.removedQuantity,
+      unit: metadata.unit,
+      timestamp: new Date()
+    });
+  } catch (e) {
+    console.error("Failed to log change:", e);
+  }
+};
+
+// --- GET: List All Distributions ---
 export async function GET(req) {
   try {
-    // 1. FIX: Keep this to satisfy Next.js stream requirements
-    await req.text();
-
-    // 2. Get Pantry ID from the frontend request
     const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) {
-      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
-    }
+    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    // 3. Your Backend Logic
-    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    const API_URL = `${BACKEND_URL}/foods/distributions`;
+    await connectDB();
 
-    const response = await fetch(API_URL, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-pantry-id': pantryId, // <--- CRITICAL: Forward the header
-      },
-      cache: 'no-store'
-    });
+    const distributions = await ClientDistribution.find({ pantryId })
+      .sort({ distributionDate: -1 })
+      .limit(100);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to fetch client distributions' }));
-      return NextResponse.json(errorData, { status: response.status });
-    }
-
-    const result = await response.json();
-    return NextResponse.json(result, { status: 200 });
-
+    return NextResponse.json({ count: distributions.length, data: distributions });
   } catch (error) {
-    console.error('Error in client-distributions GET route:', error);
-    return NextResponse.json({ message: 'An unexpected error occurred' }, { status: 500 });
+    console.error("GET Error:", error);
+    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
 
+// --- POST: Create New Distribution ---
 export async function POST(req) {
   try {
     const data = await req.json();
-
     const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) {
-      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
-    }
+    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    const API_URL = `${BACKEND_URL}/foods/log-distribution`;
+    await connectDB();
 
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-pantry-id': pantryId, // <--- Forward header
-      },
-      body: JSON.stringify(data),
+    // 1. Create Record
+    const distribution = await ClientDistribution.create({
+      ...data,
+      pantryId,
+      distributionDate: new Date(),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to create client distribution' }));
-      return NextResponse.json(errorData, { status: response.status });
-    }
+    // 2. Log to History
+    // Note: We construct the log data carefully to match the schema
+    await logChange('distributed', {
+        _id: data.itemId,
+        name: data.itemName,
+        category: data.category
+    }, null, {
+        reason: data.reason,
+        clientName: data.clientName,
+        clientId: data.clientId,
+        removedQuantity: data.quantityDistributed, // Map this field correctly
+        unit: data.unit
+    }, pantryId);
 
-    const result = await response.json();
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json(distribution, { status: 201 });
 
   } catch (error) {
-    console.error('Error in client-distributions POST route:', error);
-    return NextResponse.json({ message: 'An unexpected error occurred' }, { status: 500 });
+    console.error("POST Error:", error);
+    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
 
+// --- PUT: Update Distribution ---
 export async function PUT(req) {
   try {
-    const data = await req.json();
-    
-    const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) {
-      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
-    }
-
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    const data = await req.json();
+    const pantryId = req.headers.get('x-pantry-id');
 
-    if (!id) {
-      return NextResponse.json({ message: 'Distribution ID is required' }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ message: 'ID required' }, { status: 400 });
+    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    const API_URL = `${BACKEND_URL}/foods/distribution/${id}`;
+    await connectDB();
 
-    const response = await fetch(API_URL, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-pantry-id': pantryId, // <--- Forward header
-      },
-      body: JSON.stringify(data),
-    });
+    const result = await ClientDistribution.findOneAndUpdate(
+      { _id: id, pantryId },
+      data,
+      { new: true }
+    );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to update client distribution' }));
-      return NextResponse.json(errorData, { status: response.status });
-    }
+    if (!result) return NextResponse.json({ message: 'Record not found' }, { status: 404 });
 
-    const result = await response.json();
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json({ message: 'Updated', data: result });
 
   } catch (error) {
-    console.error('Error in client-distributions PUT route:', error);
-    return NextResponse.json({ message: 'An unexpected error occurred' }, { status: 500 });
+    console.error("PUT Error:", error);
+    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
 
+// --- DELETE: Remove Distribution ---
 export async function DELETE(req) {
   try {
-    // Await text if needed for timing, just like GET
-    await req.text(); 
-
-    const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) {
-      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
-    }
-
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    const pantryId = req.headers.get('x-pantry-id');
 
-    if (!id) {
-      return NextResponse.json({ message: 'Distribution ID is required' }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ message: 'ID required' }, { status: 400 });
+    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5555';
-    const API_URL = `${BACKEND_URL}/foods/distribution/${id}`;
+    await connectDB();
 
-    const response = await fetch(API_URL, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-pantry-id': pantryId, // <--- Forward header
-      },
-    });
+    const result = await ClientDistribution.findOneAndDelete({ _id: id, pantryId });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to delete client distribution' }));
-      return NextResponse.json(errorData, { status: response.status });
-    }
+    if (!result) return NextResponse.json({ message: 'Record not found' }, { status: 404 });
 
-    const result = await response.json();
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json({ message: 'Deleted' });
 
   } catch (error) {
-    console.error('Error in client-distributions DELETE route:', error);
-    return NextResponse.json({ message: 'An unexpected error occurred' }, { status: 500 });
+    console.error("DELETE Error:", error);
+    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
