@@ -10,14 +10,12 @@ export async function GET(req) {
       return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
     }
 
-    // 1. Connect to DB Directly
     await connectDB();
 
-    // 2. Query DB Directly
-    // Sort by timestamp descending (newest first) and limit to 50
     const changes = await ChangeLog.find({ pantryId })
       .sort({ timestamp: -1 })
-      .limit(50);
+      .limit(50)
+      .lean(); // <--- ADD THIS (Faster for read-only data)
 
     return NextResponse.json(changes);
 

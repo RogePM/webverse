@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { DashboardHome } from '@/components/pages/dashboard-home';
 import { AddItemView } from '@/components/pages/add-item-view';
-import { RemoveItemView } from '@/components/pages/remove-item-view';
 import { RecentChangesView } from '@/components/pages/recent-changes-view';
 import { InventoryView } from '@/components/pages/Full-inventory';
 import { ClientListView } from '@/components/pages/ClientDirectory';

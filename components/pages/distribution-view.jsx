@@ -1,432 +1,394 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, User, AlertCircle, Check, PackageOpen } from 'lucide-react';
+import { 
+  Search, ShoppingCart, Plus, PackageOpen, 
+  ArrowRight, ChevronUp, Calendar, AlertTriangle, X, Camera, Loader2,
+  Package // Icon for title
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch'; // You might need to install/create this, or use a checkbox
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/seperator';
 import { Badge } from '@/components/ui/badge';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/SheetCart';
 import { usePantry } from '@/components/providers/PantryProvider';
-import { Select, SelectItem } from '@/components/ui/select'; // Wrapper or native
+
+// Import Scanner
+import BarcodeScannerComponent from "react-qr-barcode-scanner";
+
+// --- IMPORT THE NEW CART COMPONENT ---
+import { DistributionCart } from './distribution-cart';
+
+// --- HELPERS ---
+const formatDate = (dateString) => {
+  if (!dateString) return 'No Date';
+  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const getExpirationStatus = (dateString) => {
+  if (!dateString) return { color: 'bg-gray-100 text-gray-600', label: 'No Date', urgent: false };
+  const today = new Date();
+  const exp = new Date(dateString);
+  const diffTime = exp - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return { color: 'bg-red-100 text-red-700 border-red-200', label: 'Expired', urgent: true };
+  if (diffDays <= 7) return { color: 'bg-orange-100 text-orange-800 border-orange-200', label: `${diffDays} days left`, urgent: true };
+  if (diffDays <= 30) return { color: 'bg-yellow-50 text-yellow-700 border-yellow-200', label: 'Expiring soon', urgent: false };
+  return { color: 'bg-green-50 text-green-700 border-green-200', label: 'Good', urgent: false };
+};
+
+const formatCategory = (cat) => cat ? cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'General';
 
 export function DistributionView() {
-    const { pantryId } = usePantry();
+  const { pantryId } = usePantry();
+  
+  // Data State
+  const [inventory, setInventory] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Search & Camera State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredItems, setFilteredItems] = useState([]);
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [showScanner, setShowScanner] = useState(false); 
+  const searchInputRef = useRef(null);
 
-    // Data State
-    const [inventory, setInventory] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+  // Cart State
+  const [cart, setCart] = useState([]); 
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
-    // Search State
-    const [searchQuery, setSearchQuery] = useState('');
-    const [filteredItems, setFilteredItems] = useState([]);
-    const searchInputRef = useRef(null);
+  // --- ACTIONS ---
 
-    // Cart State
-    const [cart, setCart] = useState([]); // Array of { item, quantity }
+  const fetchInventory = async () => {
+    if (!pantryId) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/foods', { headers: { 'x-pantry-id': pantryId } });
+      if (res.ok) {
+        const data = await res.json();
+        setInventory(data.data || []);
+      }
+    } catch (error) {
+      console.error("Failed to load inventory", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    // Checkout Form State
-    const [isAnonymous, setIsAnonymous] = useState(false);
-    const [clientName, setClientName] = useState('');
-    const [clientId, setClientId] = useState('');
-    const [reason, setReason] = useState('distribution-individual');
+  useEffect(() => { if (pantryId) fetchInventory(); }, [pantryId]);
 
-    // Processing State
-    const [isCheckingOut, setIsCheckingOut] = useState(false);
-    const [checkoutStatus, setCheckoutStatus] = useState(null); // 'success' | 'error'
+  // Filter & Sort
+  useEffect(() => {
+    let results = [...inventory];
+    if (searchQuery.trim()) {
+      const lowerQ = searchQuery.toLowerCase();
+      results = results.filter(item => 
+        item.name.toLowerCase().includes(lowerQ) || 
+        item.barcode?.includes(lowerQ) ||
+        item.category.toLowerCase().includes(lowerQ)
+      );
+    }
+    results.sort((a, b) => {
+        if (!a.expirationDate) return 1;
+        if (!b.expirationDate) return -1;
+        const dateA = new Date(a.expirationDate);
+        const dateB = new Date(b.expirationDate);
+        if (dateA < dateB) return -1;
+        if (dateA > dateB) return 1;
+        return a.name.localeCompare(b.name);
+    });
+    setFilteredItems(results);
+  }, [searchQuery, inventory]);
 
-    // 1. Fetch Inventory on Load
-    const fetchInventory = async () => {
-        if (!pantryId) return;
-        setIsLoading(true);
-        try {
-            const res = await fetch('/api/foods', {
-                headers: { 'x-pantry-id': pantryId }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setInventory(data.data || []);
-            }
-        } catch (error) {
-            console.error("Failed to load inventory", error);
-        } finally {
-            setIsLoading(false);
+  // Handle Scan Result
+  const handleScan = (err, result) => {
+      if (result) {
+          setSearchQuery(result.text);
+          setShowScanner(false); 
+      }
+  };
+
+  const addToCart = (item) => {
+    setCart(prev => {
+      const existing = prev.find(line => line.item._id === item._id);
+      if (existing) {
+        if (existing.quantity < item.quantity) {
+          return prev.map(line => line.item._id === item._id ? { ...line, quantity: line.quantity + 1 } : line);
         }
-    };
+        return prev; 
+      }
+      return [...prev, { item, quantity: 1 }];
+    });
+    // Only focus if on desktop to avoid mobile keyboard jump
+    if (window.innerWidth >= 768) {
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  };
 
-    useEffect(() => {
-        if (pantryId) fetchInventory();
-        // Auto-focus search
-        searchInputRef.current?.focus();
-    }, [pantryId]);
+  const updateCartQty = (itemId, delta) => {
+    setCart(prev => prev.map(line => {
+      if (line.item._id === itemId) {
+        const newQty = line.quantity + delta;
+        const validQty = Math.max(1, Math.min(newQty, line.item.quantity));
+        return { ...line, quantity: validQty };
+      }
+      return line;
+    }));
+  };
 
-    // 2. Filter Inventory
-    useEffect(() => {
-        if (!searchQuery.trim()) {
-            setFilteredItems(inventory.slice(0, 10)); // Show top 10 by default
-            return;
-        }
-        const lowerQ = searchQuery.toLowerCase();
-        const results = inventory.filter(item =>
-            item.name.toLowerCase().includes(lowerQ) ||
-            item.barcode?.includes(lowerQ) ||
-            item.category.toLowerCase().includes(lowerQ)
-        );
-        setFilteredItems(results);
-    }, [searchQuery, inventory]);
+  const removeFromCart = (itemId) => {
+    setCart(prev => prev.filter(line => line.item._id !== itemId));
+  };
 
-    // 3. Cart Actions
-    const addToCart = (item) => {
-        setCart(prev => {
-            const existing = prev.find(line => line.item._id === item._id);
-            if (existing) {
-                // Increment if stock allows
-                if (existing.quantity < item.quantity) {
-                    return prev.map(line =>
-                        line.item._id === item._id
-                            ? { ...line, quantity: line.quantity + 1 }
-                            : line
-                    );
-                }
-                return prev; // Max stock reached
-            }
-            // Add new line
-            return [...prev, { item, quantity: 1 }];
-        });
-        // Clear search to allow rapid scanning
-        setSearchQuery('');
-        searchInputRef.current?.focus();
-    };
+  const handleCheckoutSuccess = () => {
+      setCart([]);
+      setIsCartOpen(false);
+      fetchInventory(); 
+  };
 
-    const updateCartQty = (itemId, delta) => {
-        setCart(prev => prev.map(line => {
-            if (line.item._id === itemId) {
-                const newQty = line.quantity + delta;
-                // Clamp between 1 and Max Stock
-                const validQty = Math.max(1, Math.min(newQty, line.item.quantity));
-                return { ...line, quantity: validQty };
-            }
-            return line;
-        }));
-    };
-
-    const removeFromCart = (itemId) => {
-        setCart(prev => prev.filter(line => line.item._id !== itemId));
-    };
-
-    // 4. Checkout Process
-    const handleCheckout = async () => {
-        if (cart.length === 0) return;
-        if (!isAnonymous && !clientName.trim()) {
-            alert("Please enter a Client Name or select 'Walk-in / Anonymous'");
-            return;
-        }
-
-        setIsCheckingOut(true);
-
-        try {
-            // Process items sequentially to ensure data integrity
-            for (const line of cart) {
-                const { item, quantity } = line;
-                const newStock = item.quantity - quantity;
-
-                // ✅ If stock reaches 0, DELETE with proper logging
-                if (newStock <= 0) {
-                    const deleteParams = new URLSearchParams({
-                        reason: reason,
-                        clientName: isAnonymous ? 'Walk-in Client' : clientName,
-                        removedQuantity: quantity.toString(),
-                        unit: 'units'
-                    });
-
-                    // Add clientId only if provided
-                    if (!isAnonymous && clientId.trim()) {
-                        deleteParams.append('clientId', clientId);
-                    }
-
-                    const deleteRes = await fetch(`/api/foods/${item._id}?${deleteParams.toString()}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'x-pantry-id': pantryId
-                        }
-                    });
-
-                    if (!deleteRes.ok) {
-                        const errorData = await deleteRes.json().catch(() => ({}));
-                        throw new Error(`Failed to delete ${item.name}: ${errorData.message || 'Unknown error'}`);
-                    }
-
-                    console.log(`✅ Deleted ${item.name} (stock depleted)`);
-
-                } else {
-                    // A. Update Inventory Quantity (PUT)
-                    const updateRes = await fetch(`/api/foods/${item._id}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'x-pantry-id': pantryId
-                        },
-                        body: JSON.stringify({
-                            name: item.name,
-                            category: item.category,
-                            quantity: newStock,
-                            expirationDate: item.expirationDate,
-                            storageLocation: item.storageLocation,
-                            barcode: item.barcode
-                        })
-                    });
-
-                    if (!updateRes.ok) {
-                        const errorData = await updateRes.json().catch(() => ({}));
-                        throw new Error(`Failed to update ${item.name}: ${errorData.message || 'Unknown error'}`);
-                    }
-
-                    console.log(`✅ Updated ${item.name}: ${item.quantity} → ${newStock}`);
-
-                    // B. Log Distribution for partial distribution (POST)
-                    const logRes = await fetch('/api/foods/log-distribution', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'x-pantry-id': pantryId
-                        },
-                        body: JSON.stringify({
-                            itemId: item._id,
-                            itemName: item.name,
-                            category: item.category,
-                            quantityDistributed: quantity,
-                            unit: 'units',
-                            reason: reason,
-                            clientName: isAnonymous ? 'Walk-in Client' : clientName,
-                            clientId: isAnonymous ? undefined : clientId
-                        })
-                    });
-
-                    if (!logRes.ok) {
-                        console.warn(`⚠️ Failed to log distribution for ${item.name}`);
-                    }
-                }
-            }
-
-            // Success!
-            setCheckoutStatus('success');
-            setCart([]);
-            setClientName('');
-            setClientId('');
-            setIsAnonymous(false);
-            setReason('distribution-individual');
-            fetchInventory(); // Refresh stock data
-
-            // Show success message
-            setTimeout(() => setCheckoutStatus(null), 3000);
-
-        } catch (error) {
-            console.error("Checkout Error:", error);
-            alert(`Error processing distribution: ${error.message}`);
-            setCheckoutStatus('error');
-            setTimeout(() => setCheckoutStatus(null), 3000);
-        } finally {
-            setIsCheckingOut(false);
-        }
-    };
-
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-8rem)]">
-
-            {/* LEFT COLUMN: Search & Inventory */}
-            <div className="md:col-span-2 flex flex-col gap-4 h-full">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                        ref={searchInputRef}
-                        placeholder="Scan barcode or type item name..."
-                        className="pl-10 h-12 text-lg shadow-sm"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        disabled={isCheckingOut}
-                    />
-                </div>
-
-                <Card className="flex-1 overflow-hidden border-dashed">
-                    <ScrollArea className="h-full p-4">
-                        {isLoading ? (
-                            <p className="text-center text-muted-foreground py-10">Loading inventory...</p>
-                        ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {filteredItems.map(item => {
-                                    const inCart = cart.find(c => c.item._id === item._id);
-                                    const available = item.quantity - (inCart?.quantity || 0);
-                                    const isOOS = available <= 0;
-
-                                    return (
-                                        <button
-                                            key={item._id}
-                                            onClick={() => !isOOS && addToCart(item)}
-                                            disabled={isOOS || isCheckingOut}
-                                            className={`
-                         flex flex-col items-start p-3 rounded-lg border text-left transition-all
-                         ${isOOS
-                                                    ? 'opacity-50 bg-gray-50 cursor-not-allowed'
-                                                    : 'hover:border-primary hover:shadow-sm bg-white'}
-                       `}
-                                        >
-                                            <div className="flex justify-between w-full mb-1">
-                                                <span className="font-semibold truncate w-full">{item.name}</span>
-                                            </div>
-                                            <div className="flex justify-between w-full text-xs text-muted-foreground">
-                                                <span>{item.category}</span>
-                                                <span className={available < 5 ? "text-red-600 font-bold" : ""}>
-                                                    {available} left
-                                                </span>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                                {filteredItems.length === 0 && (
-                                    <div className="col-span-full text-center py-10 text-muted-foreground">
-                                        No items found.
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </ScrollArea>
-                </Card>
+  return (
+    <div className="relative flex flex-col h-[calc(100vh-6rem)] bg-white">
+      
+      {/* --- CAMERA OVERLAY (Z-Index High) --- */}
+      {showScanner && (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in fade-in duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 bg-black/80 absolute top-0 left-0 right-0 z-10">
+                <span className="text-white font-medium flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#d97757]" /> Finding Barcode...
+                </span>
+                <Button variant="ghost" className="text-white hover:bg-white/20 rounded-full h-10 w-10 p-0" onClick={() => setShowScanner(false)}>
+                    <X className="h-6 w-6" />
+                </Button>
             </div>
-
-            {/* RIGHT COLUMN: Cart & Checkout */}
-            <div className="md:col-span-1 flex flex-col gap-4 h-full">
-                <Card className="flex-1 flex flex-col shadow-lg border-l-4 border-l-primary overflow-hidden">
-                    <CardHeader className="pb-3 border-b bg-muted/10">
-                        <CardTitle className="flex items-center justify-between">
-                            <span className="flex items-center gap-2">
-                                <ShoppingCart className="h-5 w-5" /> Distribution Cart
-                            </span>
-                            <Badge variant="secondary">{cart.reduce((acc, curr) => acc + curr.quantity, 0)} Items</Badge>
-                        </CardTitle>
-                    </CardHeader>
-
-                    <div className="flex-1 overflow-y-auto p-0">
-                        {cart.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-6 text-center">
-                                <PackageOpen className="h-12 w-12 mb-3 opacity-20" />
-                                <p>Cart is empty.</p>
-                                <p className="text-sm">Select items from the left to add them.</p>
-                            </div>
-                        ) : (
-                            <div className="divide-y">
-                                {cart.map(line => (
-                                    <div key={line.item._id} className="flex items-center justify-between p-4 hover:bg-muted/20">
-                                        <div className="flex-1 min-w-0 pr-3">
-                                            <p className="font-medium truncate">{line.item.name}</p>
-                                            <p className="text-xs text-muted-foreground">Max: {line.item.quantity}</p>
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <Button
-                                                variant="outline" size="icon" className="h-8 w-8"
-                                                onClick={() => updateCartQty(line.item._id, -1)}
-                                                disabled={isCheckingOut}
-                                            >
-                                                <Minus className="h-3 w-3" />
-                                            </Button>
-                                            <span className="w-8 text-center font-mono">{line.quantity}</span>
-                                            <Button
-                                                variant="outline" size="icon" className="h-8 w-8"
-                                                onClick={() => updateCartQty(line.item._id, 1)}
-                                                disabled={line.quantity >= line.item.quantity || isCheckingOut}
-                                            >
-                                                <Plus className="h-3 w-3" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 ml-1"
-                                                onClick={() => removeFromCart(line.item._id)}
-                                                disabled={isCheckingOut}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <Separator />
-
-                    {/* Checkout Form */}
-                    <div className="p-4 bg-muted/5 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <Label className="text-xs font-bold uppercase text-muted-foreground">Recipient Details</Label>
-                            <div className="flex items-center gap-2">
-                                <Label htmlFor="anon-mode" className="text-xs cursor-pointer">Walk-in / Anonymous</Label>
-                                <Switch
-                                    id="anon-mode"
-                                    checked={isAnonymous}
-                                    onCheckedChange={setIsAnonymous}
-                                    disabled={isCheckingOut}
-                                />
-                            </div>
-                        </div>
-
-                        <AnimatePresence mode="wait">
-                            {!isAnonymous && (
-                                <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    className="space-y-3 overflow-hidden"
-                                >
-                                    <Input
-                                        placeholder="Client Name (e.g. Maria Lopez)"
-                                        value={clientName}
-                                        onChange={(e) => setClientName(e.target.value)}
-                                        disabled={isCheckingOut}
-                                    />
-                                    <Input
-                                        placeholder="Client ID (Optional)"
-                                        value={clientId}
-                                        onChange={(e) => setClientId(e.target.value)}
-                                        disabled={isCheckingOut}
-                                    />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        <div className="grid gap-2">
-                            <Label className="text-xs">Distribution Reason</Label>
-                            {/* Native Select for Simplicity */}
-                            <select
-                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                value={reason}
-                                onChange={(e) => setReason(e.target.value)}
-                                disabled={isCheckingOut}
-                            >
-                                <option value="distribution-individual">Individual Assistance</option>
-                                <option value="distribution-family">Family Box</option>
-                                <option value="distribution-emergency">Emergency</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-
-                        <Button
-                            className="w-full h-12 text-lg"
-                            onClick={handleCheckout}
-                            disabled={cart.length === 0 || isCheckingOut}
-                        >
-                            {isCheckingOut ? (
-                                "Processing..."
-                            ) : checkoutStatus === 'success' ? (
-                                <><Check className="mr-2 h-5 w-5" /> Done!</>
-                            ) : (
-                                `Distribute ${cart.reduce((acc, c) => acc + c.quantity, 0)} Items`
-                            )}
-                        </Button>
-                    </div>
-                </Card>
+            
+            {/* Scanner Area */}
+            <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
+                <BarcodeScannerComponent
+                    width={500}
+                    height={800}
+                    facingMode="environment"
+                    onUpdate={handleScan}
+                    videoStyle={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                {/* Guide Box */}
+                <div className="absolute border-2 border-[#d97757] w-72 h-48 rounded-lg opacity-80 pointer-events-none shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]"></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-0.5 bg-red-500 shadow-[0_0_10px_red] animate-pulse"></div>
             </div>
         </div>
-    );
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 h-full">
+        
+        {/* LEFT: Inventory Browser (Spans 2 Columns) */}
+        <div className="lg:col-span-2 flex flex-col h-full border-r border-gray-200">
+            
+            {/* --- HEADER & SEARCH --- */}
+            <div className="p-4 border-b bg-white z-10 sticky top-0">
+                <div className="max-w-4xl mx-auto w-full">
+                    
+                    {/* Title Section */}
+                    <div className="mb-4">
+                        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                            <Package className="h-5 w-5 text-[#d97757]" />
+                            Remove Item
+                        </h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">Select items to add to outgoing packages</p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        {/* SEARCH LOGIC */}
+                        <div className="relative flex-1">
+                            {!isSearchActive && !searchQuery ? (
+                                /* STATE 1: THE BUTTON (Prevents Keyboard Popup) */
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1 h-11 justify-start text-muted-foreground bg-gray-50 border-gray-200 hover:bg-white hover:border-[#d97757] transition-all text-base font-normal"
+                                        onClick={() => {
+                                            setIsSearchActive(true);
+                                            setTimeout(() => searchInputRef.current?.focus(), 50);
+                                        }}
+                                    >
+                                        <Search className="mr-2 h-4 w-4" />
+                                        Search items...
+                                    </Button>
+                                    <Button 
+                                        className="h-11 w-11 shrink-0 bg-gray-900 text-white hover:bg-[#d97757]"
+                                        onClick={() => setShowScanner(true)}
+                                    >
+                                        <Camera className="h-5 w-5" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                /* STATE 2: THE REAL INPUT (Active) */
+                                <div className="relative w-full animate-in fade-in zoom-in-95 duration-200">
+                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                        ref={searchInputRef}
+                                        placeholder="Search inventory..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        onBlur={() => {
+                                            if (!searchQuery) setIsSearchActive(false);
+                                        }}
+                                        className="pl-10 pr-10 h-11 text-base bg-white border-[#d97757] ring-1 ring-[#d97757] focus:ring-[#d97757] focus:border-[#d97757] transition-colors"
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            setSearchQuery('');
+                                            setIsSearchActive(false);
+                                        }}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* --- GRID CONTENT --- */}
+            <div className="flex-1 bg-gray-50/50 overflow-hidden">
+                <ScrollArea className="h-full p-4">
+                    {isLoading ? (
+                        <div className="flex h-40 items-center justify-center text-muted-foreground text-sm">
+                            <div className="animate-spin mr-2 h-4 w-4 border-2 border-[#d97757] border-t-transparent rounded-full"></div>
+                            Loading inventory...
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pb-20 md:pb-0">
+                            {filteredItems.map(item => {
+                                const inCart = cart.find(c => c.item._id === item._id);
+                                const available = item.quantity - (inCart?.quantity || 0);
+                                const isOOS = available <= 0;
+                                const expStatus = getExpirationStatus(item.expirationDate);
+
+                                return (
+                                    <button
+                                        key={item._id}
+                                        onClick={() => !isOOS && addToCart(item)}
+                                        disabled={isOOS}
+                                        className={`
+                                            group relative flex flex-col p-0 rounded-xl border text-left transition-all duration-200 overflow-hidden bg-white
+                                            ${isOOS 
+                                            ? 'opacity-60 grayscale cursor-not-allowed border-gray-200' 
+                                            : 'border-gray-200 hover:border-[#d97757]/50 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]'}
+                                        `}
+                                    >
+                                        <div className="p-4 w-full">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <Badge variant="outline" className="font-normal text-[10px] text-gray-500 bg-gray-50">
+                                                    {formatCategory(item.category)}
+                                                </Badge>
+                                                {item.expirationDate && (
+                                                    <Badge variant="outline" className={`text-[10px] font-medium border ${expStatus.color}`}>
+                                                        {expStatus.urgent && <AlertTriangle className="h-3 w-3 mr-1" />}
+                                                        {expStatus.label}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <h3 className="font-bold text-gray-900 truncate pr-8 text-base mb-1">{item.name}</h3>
+                                            <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                                <Calendar className="h-3 w-3" /> Exp: {formatDate(item.expirationDate)}
+                                            </div>
+                                        </div>
+                                        <div className="mt-auto border-t bg-gray-50/50 p-3 flex items-center justify-between w-full">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] uppercase font-bold text-gray-400">Available</span>
+                                                <span className={`text-sm font-bold ${isOOS ? 'text-red-500' : 'text-gray-700'}`}>
+                                                    {isOOS ? "0" : Math.round(available * 100) / 100} <span className="text-[10px] font-normal text-gray-500">{item.unit || 'units'}</span>
+                                                </span>
+                                            </div>
+                                            {!isOOS && (
+                                                <div className="h-8 w-8 rounded-full bg-[#d97757] text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                                                    <Plus className="h-4 w-4" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                            {filteredItems.length === 0 && (
+                                <div className="col-span-full flex flex-col items-center justify-center py-12 text-muted-foreground">
+                                    <PackageOpen className="h-10 w-10 mb-2 opacity-20" />
+                                    <p>No items found</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </ScrollArea>
+            </div>
+        </div>
+
+        {/* RIGHT: Desktop Cart Sidebar (Fixed to right column) */}
+        <div className="hidden lg:flex lg:col-span-1 flex-col h-full bg-white border-l border-gray-200 shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)] z-20">
+            <div className="p-4 border-b bg-white">
+                <h3 className="font-bold text-lg flex items-center gap-2">
+                    <ShoppingCart className="h-5 w-5 text-[#d97757]" />
+                    Current Cart
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                    {cart.reduce((acc, curr) => acc + curr.quantity, 0)} Items selected
+                </p>
+            </div>
+            <div className="flex-1 overflow-hidden">
+                <DistributionCart 
+                    cart={cart}
+                    onUpdateQty={updateCartQty}
+                    onRemove={removeFromCart}
+                    onCheckoutSuccess={handleCheckoutSuccess}
+                />
+            </div>
+        </div>
+      </div>
+
+      {/* MOBILE: Sticky Bottom Bar + Sheet */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 z-50 pb-safe-area shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        {cart.length > 0 ? (
+            <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
+                <SheetTrigger asChild>
+                    <Button size="lg" className="w-full h-14 text-lg shadow-xl bg-[#d97757] hover:bg-[#c06245] animate-in slide-in-from-bottom-4">
+                        <div className="flex items-center justify-between w-full px-4">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-white/20 px-2 py-0.5 rounded text-sm font-mono text-white">
+                                    {cart.reduce((acc, c) => acc + c.quantity, 0)}
+                                </div>
+                                <span className="font-medium text-white">View Cart</span>
+                            </div>
+                            <div className="flex items-center gap-2 font-bold text-white">
+                                Checkout <ChevronUp className="h-5 w-5" />
+                            </div>
+                        </div>
+                    </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="h-[85vh] rounded-t-[20px] p-0 flex flex-col">
+                    <SheetHeader className="p-5 border-b">
+                        <SheetTitle className="flex items-center gap-2">
+                             <ShoppingCart className="h-5 w-5 text-[#d97757]" /> Cart Summary
+                        </SheetTitle>
+                    </SheetHeader>
+                    <div className="flex-1 overflow-hidden">
+                        <DistributionCart 
+                            cart={cart}
+                            onUpdateQty={updateCartQty}
+                            onRemove={removeFromCart}
+                            onCheckoutSuccess={handleCheckoutSuccess}
+                        />
+                    </div>
+                </SheetContent>
+            </Sheet>
+        ) : (
+            <div className="text-center text-xs text-muted-foreground py-2 flex items-center justify-center gap-2">
+                <ArrowRight className="h-3 w-3 animate-pulse text-[#d97757]" /> Select items to build cart
+            </div>
+        )}
+      </div>
+
+    </div>
+  );
 }

@@ -1,364 +1,342 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { AnimatePresence } from 'framer-motion';
-import { ScanBarcode, Weight } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  ScanBarcode, 
+  Package, 
+  Weight, 
+  Wand2, 
+  Loader2, 
+  ArrowLeft, 
+  Camera, 
+  X,
+  ChevronDown 
+} from 'lucide-react';
+
+// IMPORT THE NEW HOOK
+import { useZxing } from "react-zxing";
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectItem } from '@/components/ui/select';
-import { Toggle } from '@/components/ui/toggle';
-import {
-  DialogOverlay,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { SheetHeader, SheetTitle } from '@/components/ui/SheetCart';
 import { categories } from '@/lib/constants';
-// 1. Import the hook
 import { usePantry } from '@/components/providers/PantryProvider';
 
-export function AddItemModal({ isOpen, onOpenChange, initialCategory = '' }) {
-  // 2. Get Pantry ID
+export function AddItemForm({ initialCategory, onClose }) {
   const { pantryId } = usePantry();
 
-  // Form state
+  // --- STATE ---
   const [barcode, setBarcode] = useState('');
-  const [category, setCategory] = useState(initialCategory);
+  const [isInternalBarcode, setIsInternalBarcode] = useState(false);
+  const [category, setCategory] = useState(initialCategory || categories[0]?.value || 'canned');
   const [itemName, setItemName] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [expirationDate, setExpirationDate] = useState('');
-  const [storageLocation, setStorageLocation] = useState('');
   const [unit, setUnit] = useState('units');
-  
-  // UI state
+  const [expirationDate, setExpirationDate] = useState('');
+
+  // Loading & UI States
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLookingUpBarcode, setIsLookingUpBarcode] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
-  
-  const barcodeTimeoutRef = useRef(null);
+  const [isLoadingBarcode, setIsLoadingBarcode] = useState(false);
+  const [showScanner, setShowScanner] = useState(false); // Controls Camera Overlay
 
+  // --- LOGIC: Internal Barcode ---
+  const generateInternalBarcode = () => {
+    const randomCode = Math.floor(100000 + Math.random() * 900000);
+    setBarcode(`INT-${randomCode}`);
+    setIsInternalBarcode(true);
+  };
+
+  // --- LOGIC: Barcode Lookup ---
   useEffect(() => {
-    if (isOpen) {
-      setBarcode('');
-      setCategory(initialCategory || categories[0].value);
-      setItemName('');
-      setQuantity('');
-      setExpirationDate('');
-      setStorageLocation('');
-      setUnit('units');
-      setMessage({ type: '', text: '' });
-    }
-  }, [isOpen, initialCategory]);
-
-  const handleBarcodeLookup = async (barcodeValue) => {
-    if (!barcodeValue || barcodeValue.trim().length === 0) return;
-    if (!pantryId) return; // Safety check
-
-    setIsLookingUpBarcode(true);
-    setMessage({ type: '', text: '' });
-
-    try {
-      const response = await fetch(`/api/barcode/${encodeURIComponent(barcodeValue.trim())}`, {
-        headers: {
-          // 3. Pass Header for Lookup
-          'x-pantry-id': pantryId
+    const lookup = async () => {
+      if (!barcode || barcode.length < 3 || isInternalBarcode) return;
+      setIsLoadingBarcode(true);
+      try {
+        const res = await fetch(`/api/barcode/${encodeURIComponent(barcode)}`, {
+          headers: { 'x-pantry-id': pantryId }
+        });
+        const data = await res.json();
+        if (data.found && data.data) {
+          setItemName(data.data.name || '');
+          setCategory(data.data.category || category);
         }
-      });
-      
-      if (!response.ok) throw new Error('Failed to lookup barcode');
-
-      const result = await response.json();
-
-      if (result.found && result.data) {
-        setItemName(result.data.name || '');
-        setCategory(result.data.category || category);
-        setStorageLocation(result.data.storageLocation || '');
-        
-        setMessage({ type: 'success', text: 'Item information loaded from cache!' });
-        setTimeout(() => setMessage({ type: '', text: '' }), 3000);
-      } else {
-        setMessage({ type: 'info', text: 'Barcode not found in cache. Fill details manually.' });
-        setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+      } catch (e) {
+        console.error("Lookup failed", e);
+      } finally {
+        setIsLoadingBarcode(false);
       }
-    } catch (error) {
-      console.error('Error looking up barcode:', error);
-      setMessage({ type: 'error', text: 'Failed to lookup barcode.' });
-    } finally {
-      setIsLookingUpBarcode(false);
-    }
-  };
-
-  const handleBarcodeChange = (e) => {
-    const value = e.target.value;
-    setBarcode(value);
-    setMessage({ type: '', text: '' });
-    
-    if (barcodeTimeoutRef.current) clearTimeout(barcodeTimeoutRef.current);
-    
-    if (value.trim().length > 0) {
-      barcodeTimeoutRef.current = setTimeout(() => {
-        handleBarcodeLookup(value);
-      }, 1000);
-    }
-  };
-  
-  useEffect(() => {
-    return () => {
-      if (barcodeTimeoutRef.current) clearTimeout(barcodeTimeoutRef.current);
     };
-  }, []);
+    const timeout = setTimeout(lookup, 800);
+    return () => clearTimeout(timeout);
+  }, [barcode, isInternalBarcode, pantryId, category]);
 
+  // --- LOGIC: Submit ---
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMessage({ type: '', text: '' });
-
-    if (!itemName || !quantity || !expirationDate || !category) {
-      setMessage({ type: 'error', text: 'Please fill all required fields' });
-      return;
-    }
-
-    const quantityNum = parseFloat(quantity);
-    if (isNaN(quantityNum) || quantityNum <= 0) {
-      setMessage({ type: 'error', text: 'Please enter a valid quantity' });
-      return;
-    }
-
-    if (!pantryId) {
-      setMessage({ type: 'error', text: 'Organization ID missing. Refresh the page.' });
-      return;
-    }
-
+    if (!itemName || !quantity) return;
     setIsSubmitting(true);
-
     try {
-      const formData = {
-        barcode: barcode.trim() || null,
-        name: itemName.trim(),
-        category: category,
-        quantity: quantityNum,
-        expirationDate: expirationDate,
-        storageLocation: storageLocation.trim() || 'N/A',
-      };
-
-      const response = await fetch('/api/foods', {
+      const finalBarcode = barcode.trim() || `GEN-${Date.now().toString().slice(-6)}`;
+      const res = await fetch('/api/foods', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // 4. Pass Header for Creation
-          'x-pantry-id': pantryId
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json', 'x-pantry-id': pantryId },
+        body: JSON.stringify({
+          barcode: finalBarcode,
+          name: itemName,
+          category,
+          quantity: parseFloat(quantity),
+          unit, // Sends 'units', 'lbs', 'kg', or 'oz'
+          expirationDate,
+        })
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to add item' }));
-        throw new Error(errorData.message || 'Failed to add item');
-      }
-
-      setMessage({ type: 'success', text: 'Item added successfully!' });
-      
-      setBarcode('');
-      setItemName('');
-      setQuantity('');
-      setExpirationDate('');
-      setStorageLocation('');
-      setCategory(initialCategory || categories[0].value);
-      setUnit('units');
-
-      setTimeout(() => {
-        setMessage({ type: '', text: '' });
-        onOpenChange(false);
-      }, 1500);
-
-    } catch (error) {
-      console.error('Error adding item:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to add item.' });
+      if (!res.ok) throw new Error("Failed");
+      onClose();
+    } catch (err) {
+      alert("Error adding item");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // --- BRAND STYLES ---
+  const brandColor = "#d97757";
+  const focusClass = `focus-visible:ring-[${brandColor}] focus-visible:border-[${brandColor}]`;
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <DialogOverlay onClick={() => onOpenChange(false)} />
-          <DialogContent onClose={() => onOpenChange(false)} className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader className="pb-3">
-              <DialogTitle className="text-lg">Add New Item</DialogTitle>
-              <DialogDescription className="text-sm">
-                Enter item details below. Scan a barcode (optional)
-              </DialogDescription>
-            </DialogHeader>
+    <div className="flex flex-col h-full bg-gray-50/50 relative">
+
+      {/* CAMERA OVERLAY (Shows when showScanner is true) */}
+      {showScanner && (
+        <div className="absolute inset-0 z-50 bg-black flex flex-col">
+          <div className="flex items-center justify-between p-4 bg-black/50 absolute top-0 left-0 right-0 z-10">
+            <span className="text-white font-medium">Scan Barcode</span>
+            <Button variant="ghost" className="text-white hover:bg-white/20" onClick={() => setShowScanner(false)}>
+              <X className="h-6 w-6" />
+            </Button>
+          </div>
+          <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
             
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-2">
-                
-                {/* Barcode Input */}
-                <div className="space-y-1">
-                  <Label htmlFor="barcode" className="text-xs font-medium">
-                    Barcode <span className="text-muted-foreground font-normal">(optional)</span>
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <ScanBarcode className={`h-4 w-4 flex-shrink-0 ${
-                      isLookingUpBarcode ? 'text-primary animate-pulse' : 'text-muted-foreground'
-                    }`} />
-                    <Input 
-                      id="barcode" 
-                      name="barcode" 
-                      placeholder="Scan or enter code"
-                      className="flex-1 h-9 text-sm"
-                      value={barcode}
-                      onChange={handleBarcodeChange}
-                      disabled={isLookingUpBarcode}
-                    />
-                  </div>
-                  {isLookingUpBarcode && (
-                    <p className="text-xs text-muted-foreground">Looking up barcode...</p>
-                  )}
-                </div>
+            {/* LOADING STATE - (Optional: zxing loads very fast, but keeping for UI consistency) */}
+            <div className="absolute text-white/50 text-sm z-0 flex items-center gap-2">
+              <Loader2 className="animate-spin h-4 w-4" /> Starting Camera...
+            </div>
 
-                {/* Category */}
-                <div className="space-y-1">
-                  <Label htmlFor="category" className="text-xs font-medium">Category</Label>
-                  {/* Use standard Select here if needed, or replace with your custom one */}
-                  <div className="relative">
-                    <select
-                        id="category"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
-                        required
-                    >
-                        {categories.map((cat) => (
-                        <option key={cat.value} value={cat.value}>
-                            {cat.name}
-                        </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
+            {/* NEW SCANNER IMPLEMENTATION */}
+            <ScannerWrapper 
+              onScan={(result) => {
+                setBarcode(result);
+                setShowScanner(false);
+              }}
+              onError={(error) => {
+                console.error("Scanner Error:", error);
+                // Only alert on critical errors to avoid spamming the user
+                if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
+                    alert("Camera Error: Could not access camera.");
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowScanner(false)}
+              className="absolute top-4 right-4 z-50 bg-black/50 text-white hover:bg-black/70 rounded-full h-12 w-12 backdrop-blur-md border border-white/10"
+            >
+              <X className="h-6 w-6" />
+            </Button>
 
-                {/* Item Name */}
-                <div className="space-y-1">
-                  <Label htmlFor="item-name" className="text-xs font-medium">Item Name</Label>
-                  <Input 
-                    id="item-name" 
-                    name="item-name" 
-                    placeholder="e.g., Canned Corn"
-                    className="h-9 text-sm"
-                    value={itemName}
-                    onChange={(e) => setItemName(e.target.value)}
-                    required 
-                  />
-                </div>
-
-                {/* Quantity */}
-                <div className="space-y-1">
-                  <Label htmlFor="quantity" className="text-xs font-medium">Quantity</Label>
-                  <div className="flex items-center gap-2">
-                    <Input 
-                      id="quantity" 
-                      name="quantity" 
-                      type="number" 
-                      placeholder="e.g., 24"
-                      className="flex-1 h-9 text-sm"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      min="0"
-                      step="0.01"
-                      required 
-                    />
-                    <div className="flex rounded-md border border-input overflow-hidden h-9">
-                      <Toggle
-                        pressed={unit === 'units'}
-                        onClick={() => setUnit('units')}
-                        type="button"
-                        className="rounded-r-none border-r border-input data-[state=on]:bg-accent h-9 px-3 text-xs"
-                        size="sm"
-                      >
-                        Units
-                      </Toggle>
-                      <Toggle
-                        pressed={unit === 'pounds'}
-                        onClick={() => setUnit('pounds')}
-                        type="button"
-                        className="rounded-l-none data-[state=on]:bg-accent h-9 px-3 text-xs"
-                        size="sm"
-                      >
-                        <Weight className="mr-1 h-3.5 w-3.5" />
-                        Lbs
-                      </Toggle>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Expiration Date */}
-                <div className="space-y-1">
-                  <Label htmlFor="expiration" className="text-xs font-medium">Exp. Date</Label>
-                  <Input 
-                    id="expiration" 
-                    name="expiration" 
-                    type="date"
-                    className="h-9 text-sm"
-                    value={expirationDate}
-                    onChange={(e) => setExpirationDate(e.target.value)}
-                    required
-                  />
-                </div>
-
-                {/* Location */}
-                <div className="space-y-1">
-                  <Label htmlFor="location" className="text-xs font-medium">
-                    Location <span className="text-muted-foreground font-normal">(Optional)</span>
-                  </Label>
-                  <Input 
-                    id="location" 
-                    name="location" 
-                    placeholder="e.g., Shelf A-1"
-                    className="h-9 text-sm"
-                    value={storageLocation}
-                    onChange={(e) => setStorageLocation(e.target.value)}
-                  />
-                </div>
-
-                {/* Messages */}
-                {message.text && (
-                  <div className={`text-sm p-2 rounded-md ${
-                    message.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' :
-                    message.type === 'info' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                    'bg-red-50 text-red-700 border-red-200'
-                  }`}>
-                    {message.text}
-                  </div>
-                )}
-              </div>
-              
-              <DialogFooter className="pt-2">
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  onClick={() => onOpenChange(false)} 
-                  className="h-9"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  className="h-9"
-                  disabled={isSubmitting || !pantryId} // Disable if no pantry ID
-                >
-                  {isSubmitting ? 'Adding...' : 'Add Item'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </>
+            {/* Visual Guide Box */}
+            <div className="absolute border-2 border-[#d97757] w-64 h-40 rounded-lg opacity-50 pointer-events-none animate-pulse z-10"></div>
+          </div>
+          <div className="p-8 text-center text-white/70 text-sm">
+            Point camera at barcode
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+
+      {/* HEADER */}
+      <SheetHeader className="px-6 py-5 bg-white border-b flex flex-row items-center gap-4 space-y-0">
+        <Button variant="ghost" size="icon" onClick={onClose} className="md:hidden -ml-2 text-muted-foreground">
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <SheetTitle className="text-xl font-bold text-gray-900">
+          Add Incoming Stock
+        </SheetTitle>
+      </SheetHeader>
+
+      <div className="flex-1 overflow-y-auto px-6 py-8 space-y-8 pb-32">
+
+        {/* --- SECTION 1: IDENTIFICATION --- */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+              <ScanBarcode className="h-3.5 w-3.5 text-[#d97757]" /> Identification
+            </Label>
+            {isLoadingBarcode && <span className="text-xs text-[#d97757] animate-pulse">Looking up...</span>}
+          </div>
+
+          <div className="flex gap-2">
+            {/* Barcode Input */}
+            <div className="relative flex-1">
+              <Input
+                value={barcode}
+                onChange={(e) => { setBarcode(e.target.value); setIsInternalBarcode(false); }}
+                placeholder="Scan or enter code..."
+                className={`h-12 pl-4 pr-4 bg-white shadow-sm border-gray-200 ${focusClass}`}
+              />
+            </div>
+
+            {/* CAMERA BUTTON (Primary Action) */}
+            <Button
+              type="button"
+              onClick={() => setShowScanner(true)}
+              className="h-12 w-12 shrink-0 bg-gray-900 text-white hover:bg-[#d97757] transition-colors shadow-sm"
+            >
+              <Camera className="h-5 w-5" />
+            </Button>
+          </div>
+
+          {/* GENERATE HELPER (Secondary Action) */}
+          <div className="flex items-center justify-between px-1">
+            <p className="text-xs text-gray-400">Can't find a barcode?</p>
+            <button
+              type="button"
+              onClick={generateInternalBarcode}
+              className="text-xs font-medium text-[#d97757] hover:underline flex items-center gap-1"
+            >
+              <Wand2 className="h-3 w-3" /> Generate Internal ID
+            </button>
+          </div>
+        </section>
+
+        {/* --- SECTION 2: DETAILS --- */}
+        <section className="space-y-4">
+          <div className="space-y-4 bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-gray-400 uppercase">Product Name</Label>
+              <Input
+                value={itemName}
+                onChange={(e) => setItemName(e.target.value)}
+                placeholder="e.g. Organic Black Beans"
+                className={`h-11 bg-gray-50 border-gray-200 ${focusClass}`}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-gray-400 uppercase">Category</Label>
+                <div className="relative">
+                  <select
+                    className={`appearance-none w-full h-11 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#d97757] focus:border-[#d97757]`}
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                  >
+                    {categories.map(c => <option key={c.value} value={c.value}>{c.name}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-3.5 h-4 w-4 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-gray-400 uppercase">Expires</Label>
+                <Input
+                  type="date"
+                  className={`h-11 bg-gray-50 border-gray-200 text-gray-600 ${focusClass}`}
+                  value={expirationDate}
+                  onChange={(e) => setExpirationDate(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* --- SECTION 3: INVENTORY LEVEL --- */}
+        <section className="space-y-3">
+          <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+            <Package className="h-3.5 w-3.5 text-[#d97757]" /> Inventory Level
+          </Label>
+
+          <div className="flex gap-0 shadow-sm rounded-lg overflow-hidden border border-gray-200">
+            {/* Quantity Input */}
+            <div className="relative flex-1">
+              <Input
+                type="number"
+                placeholder="0"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                className={`h-14 text-xl font-bold pl-4 border-0 rounded-none focus-visible:ring-inset focus-visible:ring-[#d97757] z-10 relative`}
+              />
+            </div>
+
+            {/* UNIT SELECTOR */}
+            <div className="relative bg-gray-50 border-l border-gray-200 w-32 shrink-0">
+              <select
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                className="w-full h-full appearance-none bg-transparent pl-4 pr-8 text-sm font-semibold text-gray-700 focus:outline-none cursor-pointer"
+              >
+                <optgroup label="Count">
+                  <option value="units">Units</option>
+                </optgroup>
+                <optgroup label="Weight">
+                  <option value="lbs">Lbs</option>
+                  <option value="kg">Kg</option>
+                  <option value="oz">Oz</option>
+                </optgroup>
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#d97757]">
+                {unit === 'units' ? <Package className="h-4 w-4" /> : <Weight className="h-4 w-4" />}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* FOOTER */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t z-10">
+        <Button
+          size="lg"
+          className="w-full h-12 text-base font-semibold bg-[#d97757] hover:bg-[#c06245] shadow-lg shadow-[#d97757]/25 transition-all active:scale-[0.98]"
+          onClick={handleSubmit}
+          disabled={isSubmitting || !itemName || !quantity}
+        >
+          {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : null}
+          {isSubmitting ? "Adding to Pantry..." : "Confirm Item"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// --- HELPER COMPONENT FOR ZXING ---
+// We need this because hooks cannot be called conditionally. 
+// This component isolates the hook so it only runs when we render it.
+function ScannerWrapper({ onScan, onError }) {
+  // FIX 1: Memoize constraints so they don't trigger a camera restart on every render
+  const constraints = useMemo(() => ({
+    video: { 
+      facingMode: "environment" 
+    },
+    audio: false 
+  }), []);
+
+  const { ref } = useZxing({
+    onDecodeResult(result) {
+      onScan(result.getText());
+    },
+    onError(error) {
+      if (onError) onError(error);
+    },
+    constraints: constraints, // Pass the memoized object
+    timeBetweenDecodingAttempts: 300, // Optional: Reduces CPU load
+  });
+
+  return (
+    <video 
+      ref={ref} 
+      className="w-full h-full object-cover relative z-10" 
+      muted        // Required for autoplay
+      playsInline  // FIX 2: Required for iOS/Mobile browsers to prevent fullscreen takeover
+    />
   );
 }

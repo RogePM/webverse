@@ -1,9 +1,26 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Menu, ChevronDown, Copy, Check, MapPin } from 'lucide-react';
+import { 
+  Menu, 
+  ChevronDown, 
+  Copy, 
+  Check, 
+  MapPin, 
+  Building2, 
+  LogOut,
+  User
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { createBrowserClient } from '@supabase/ssr';
 
@@ -12,10 +29,9 @@ export function TopBar({ activeView, onMenuClick }) {
   
   // Data States
   const [pantryData, setPantryData] = useState(null);
-  const [userName, setUserName] = useState(''); // Changed from userEmail
+  const [userData, setUserData] = useState({ name: '', email: '', avatarUrl: '' });
   
   // UI States
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
   const supabase = createBrowserClient(
@@ -25,22 +41,19 @@ export function TopBar({ activeView, onMenuClick }) {
 
   useEffect(() => {
     const fetchDetails = async () => {
-      // 1. Get User Session
+      // 1. Get User Session & Metadata
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // 2. Fetch User Profile Name
-        const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('name')
-            .eq('user_id', user.id)
-            .single();
-            
-        if (profile) setUserName(profile.name); // Set the real name
-        else setUserName(user.email); // Fallback if name is missing
+        // Google Metadata is automatically stored here
+        setUserData({
+            name: user.user_metadata?.full_name || user.user_metadata?.name || 'User',
+            email: user.email,
+            avatarUrl: user.user_metadata?.avatar_url || ''
+        });
       }
 
-      // 3. Fetch Pantry Details
+      // 2. Fetch Current Pantry Details
       if (pantryId) {
         const { data: pantry } = await supabase
           .from('food_pantries')
@@ -54,15 +67,13 @@ export function TopBar({ activeView, onMenuClick }) {
     fetchDetails();
   }, [pantryId, supabase]);
 
-  // Click outside to close dropdown
-  useEffect(() => {
-    const closeMenu = () => setIsMenuOpen(false);
-    if (isMenuOpen) window.addEventListener('click', closeMenu);
-    return () => window.removeEventListener('click', closeMenu);
-  }, [isMenuOpen]);
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/';
+  };
 
   const handleCopyCode = (e) => {
-    e.stopPropagation();
+    e.stopPropagation(); // Prevent dropdown close
     if (pantryData?.join_code) {
       navigator.clipboard.writeText(pantryData.join_code);
       setIsCopied(true);
@@ -75,112 +86,123 @@ export function TopBar({ activeView, onMenuClick }) {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur-sm md:px-8">
+    <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-gray-200/60 bg-white/80 px-4 backdrop-blur-md md:px-8 transition-all">
       
-      {/* --- LEFT SIDE: Hamburger + Title --- */}
-      <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
+      {/* --- LEFT: Mobile Menu + Title --- */}
+      <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden text-muted-foreground shrink-0"
+          className="md:hidden text-gray-500"
           onClick={onMenuClick}
         >
           <Menu className="h-5 w-5" />
         </Button>
         
-        <div className="flex flex-col overflow-hidden">
-            <h2 className="text-lg font-semibold tracking-tight leading-none truncate">
-                {activeView}
-            </h2>
-            <span className="text-xs text-muted-foreground hidden md:block mt-1">
-                Overview
-            </span>
+        {/* Breadcrumb / Title */}
+        <div className="hidden md:flex flex-col">
+          <h2 className="text-lg font-bold tracking-tight text-gray-900 leading-tight">
+            {activeView}
+          </h2>
+          <span className="text-xs text-gray-400 font-medium">
+            Dashboard / {activeView}
+          </span>
         </div>
       </div>
       
-      {/* --- RIGHT SIDE: Org Info + User Profile --- */}
-      <div className="flex items-center gap-2 md:gap-4 shrink-0">
+      {/* --- RIGHT: Pantry Switcher + User --- */}
+      <div className="flex items-center gap-3 md:gap-6">
         
-        {/* Organization Dropdown */}
-        <div className="relative">
-            <Button 
-                variant="ghost" 
-                className={`flex items-center gap-2 h-9 px-2 md:px-3 transition-all ${isMenuOpen ? 'bg-accent' : ''}`}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    setIsMenuOpen(!isMenuOpen);
-                }}
-            >
-                {/* Hide text on very small screens if needed, or truncate */}
-                <span className="text-sm font-medium max-w-[100px] md:max-w-[150px] truncate">
-                    {pantryData?.name || 'Loading...'}
-                </span>
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
-            </Button>
-
-            {/* The Dropdown Menu - SOLID WHITE BACKGROUND FIX */}
-            {isMenuOpen && (
-                <div 
-                    onClick={(e) => e.stopPropagation()}
-                    className="absolute right-0 top-12 w-72 rounded-xl border border-gray-200 bg-white p-4 text-gray-900 shadow-xl z-50"
-                >
-                    <div className="space-y-3">
-                        <div>
-                            <h4 className="font-semibold text-sm leading-none text-black">{pantryData?.name}</h4>
-                            <div className="flex items-center gap-1 mt-1.5 text-xs text-gray-500">
-                                <MapPin className="h-3 w-3" />
-                                <span className="truncate">{pantryData?.address || 'No address set'}</span>
-                            </div>
-                        </div>
-                        
-                        <div className="h-px bg-gray-100" />
-                        
-                        {/* Join Code Section */}
-                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex flex-col gap-2">
-                            <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
-                                Invite Code
+        {/* 1. PANTRY SWITCHER (Dropdown) */}
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-3 py-1.5 px-2 md:px-3 rounded-lg hover:bg-gray-100/80 transition-colors group outline-none">
+                    <div className="hidden md:flex h-9 w-9 rounded-lg bg-orange-50 border border-orange-100 items-center justify-center text-[#d97757]">
+                        <Building2 className="h-4 w-4" />
+                    </div>
+                    <div className="flex flex-col items-start">
+                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Organization</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-gray-900 max-w-[120px] md:max-w-[160px] truncate">
+                                {pantryData?.name || 'Select Pantry'}
                             </span>
-                            <div className="flex items-center justify-between">
-                                <code className="font-mono text-lg font-bold tracking-widest text-black">
-                                    {pantryData?.join_code || '....'}
-                                </code>
-                                <Button 
-                                    size="icon" 
-                                    variant="ghost" 
-                                    className="h-6 w-6 hover:bg-white hover:shadow-sm"
-                                    onClick={handleCopyCode}
-                                >
-                                    {isCopied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3 text-gray-500" />}
-                                </Button>
-                            </div>
+                            <ChevronDown className="h-3 w-3 text-gray-400 group-hover:text-gray-600" />
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
-
-        {/* Vertical Divider (Hidden on Mobile) */}
-        <div className="h-6 w-px bg-border hidden md:block" />
-        
-        {/* User Profile Section */}
-        <div className="flex items-center gap-3">
-            {/* Text Info - HIDDEN ON MOBILE to prevent breaking layout */}
-            <div className="hidden md:flex flex-col items-end">
-                <span className="text-xs font-medium leading-none max-w-[120px] truncate text-black">
-                    {userName}
-                </span>
-                <span className="text-[10px] text-muted-foreground capitalize bg-secondary px-1.5 rounded mt-1">
-                    {userRole || 'User'}
-                </span>
-            </div>
+                </button>
+            </DropdownMenuTrigger>
             
-            {/* Avatar - Visible on all screens */}
-            <Avatar className="h-8 w-8 md:h-9 md:w-9 border border-border cursor-pointer hover:ring-2 hover:ring-ring transition-all">
-                <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                    {getInitials(userName)}
-                </AvatarFallback>
-            </Avatar>
-        </div>
+            <DropdownMenuContent align="end" className="w-72 p-3 rounded-xl shadow-xl border-gray-100">
+                <DropdownMenuLabel className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                    Current Food Bank
+                </DropdownMenuLabel>
+                
+                {/* Active Pantry Details */}
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Building2 className="h-4 w-4 text-[#d97757]" />
+                        <span className="font-semibold text-sm text-gray-900">{pantryData?.name}</span>
+                    </div>
+                    {pantryData?.address && (
+                        <div className="flex items-start gap-2 text-xs text-gray-500 mb-3 px-1">
+                            <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
+                            {pantryData.address}
+                        </div>
+                    )}
+                    {/* Join Code */}
+                    <div className="flex items-center justify-between bg-white border border-gray-200 rounded px-2 py-1.5">
+                        <code className="text-xs font-mono font-bold text-gray-700">
+                            {pantryData?.join_code || '...'}
+                        </code>
+                        <button onClick={handleCopyCode} className="text-gray-400 hover:text-[#d97757] transition-colors">
+                            {isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        </button>
+                    </div>
+                </div>
+
+                <DropdownMenuSeparator />
+                
+                {/* Placeholder for Future Multi-Pantry Logic */}
+                <DropdownMenuItem disabled className="text-xs text-gray-400 justify-center py-2 cursor-not-allowed">
+                    Switch Pantry (Coming Soon)
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Divider */}
+        <div className="h-8 w-px bg-gray-200 hidden md:block" />
+        
+        {/* 2. USER PROFILE (Dropdown) */}
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0 hover:bg-transparent focus-visible:ring-0">
+                    <Avatar className="h-9 w-9 border border-gray-200 shadow-sm hover:ring-2 hover:ring-[#d97757]/20 transition-all">
+                        <AvatarImage src={userData.avatarUrl} alt={userData.name} />
+                        <AvatarFallback className="bg-[#d97757] text-white font-medium text-xs">
+                            {getInitials(userData.name)}
+                        </AvatarFallback>
+                    </Avatar>
+                </Button>
+            </DropdownMenuTrigger>
+            
+            <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-xl border-gray-100 p-2">
+                <div className="px-2 py-2">
+                    <p className="text-sm font-bold text-gray-900">{userData.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{userData.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer rounded-lg focus:bg-gray-50 text-sm">
+                    <User className="mr-2 h-4 w-4 text-gray-500" /> Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                    className="cursor-pointer rounded-lg focus:bg-red-50 text-red-600 text-sm mt-1"
+                    onClick={handleSignOut}
+                >
+                    <LogOut className="mr-2 h-4 w-4" /> Log out
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+
       </div>
     </header>
   );

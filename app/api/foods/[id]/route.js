@@ -4,21 +4,64 @@ import { FoodItem } from '@/lib/models/FoodItemModel';
 import { ChangeLog } from '@/lib/models/ChangeLogModel';
 import { ClientDistribution } from '@/lib/models/ClientDistributionModel';
 
-// --- Helper: Log Changes ---
+// --- FIXED Helper: Log Changes with Metrics ---
 const logChange = async (actionType, item, changes = null, metadata = {}, pantryId) => {
   try {
+    // 1. DETERMINE QUANTITY CHANGED
+    let qty = 0;
+    
+    if (actionType === 'added') {
+        qty = item.quantity;
+    } else if (actionType === 'distributed') {
+        qty = metadata.removedQuantity || 0;
+    } else if (actionType === 'deleted') {
+        // If deleting, the change is the entire remaining quantity
+        qty = item.quantity; 
+    }
+
+    // 2. CALCULATE IMPACT METRICS
+    let weight = 0;
+    const unit = (metadata.unit || item.unit || 'units').toLowerCase();
+    
+    if (unit === 'lbs') weight = qty;
+    else if (unit === 'kg') weight = qty * 2.20462;
+    else if (unit === 'oz') weight = qty / 16;
+    else weight = qty * 1; 
+
+    const value = weight * 2.50; 
+    const familySize = metadata.familySize || 1; 
+
+    // 3. CREATE LOG
     await ChangeLog.create({
       pantryId,
       actionType,
       itemId: item._id,
       itemName: item.name,
       category: item.category,
+      
+      // Logic for previous quantity
+      // If deleted, previous was item.quantity. If updated, we assume item.quantity is current.
+      previousQuantity: actionType === 'added' ? 0 : item.quantity, 
+      quantityChanged: qty,
+      newQuantity: actionType === 'deleted' ? 0 : item.quantity,
+      unit: item.unit, 
+
+      // Metadata
       changes,
       distributionReason: metadata.reason,
       clientName: metadata.clientName,
       clientId: metadata.clientId,
-      removedQuantity: metadata.removedQuantity,
-      unit: metadata.unit,
+      removedQuantity: qty, 
+
+      // Impact Data
+      impactMetrics: {
+        peopleServed: actionType === 'distributed' ? familySize : 0,
+        estimatedValue: parseFloat(value.toFixed(2)),
+        standardizedWeight: parseFloat(weight.toFixed(2)),
+        wasteDiverted: false // Deletion usually counts as waste/adjustment
+      },
+      tags: metadata.reason === 'emergency' ? ['Urgent'] : [],
+      
       timestamp: new Date()
     });
   } catch (e) {
@@ -73,7 +116,6 @@ export async function PUT(req, { params }) {
     // 3. Log Changes
     const changes = {};
     for (const key of Object.keys(updateData)) {
-        // Compare old vs new values to record what changed
         if (key !== 'lastModified' && key !== '_id' && oldItem[key] != updateData[key]) {
             changes[key] = { old: oldItem[key], new: updateData[key] };
         }
@@ -99,7 +141,7 @@ export async function DELETE(req, { params }) {
     
     if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    // Parse query params for logging (reason, client name, etc.)
+    // Parse query params
     const { searchParams } = new URL(req.url);
     const reason = searchParams.get('reason');
     const clientName = searchParams.get('clientName');
@@ -124,7 +166,7 @@ export async function DELETE(req, { params }) {
             itemId: result._id,
             category: result.category,
             quantityDistributed: parseInt(removedQuantity) || result.quantity,
-            unit: unit || 'units',
+            unit: unit || result.unit || 'units',
             reason: reason || 'deleted',
             distributionDate: new Date()
         });
@@ -132,7 +174,12 @@ export async function DELETE(req, { params }) {
 
     // 3. Log Deletion to History
     await logChange('deleted', result, null, { 
-        reason, clientName, clientId, removedQuantity, unit 
+        reason, 
+        clientName, 
+        clientId, 
+        // If specific qty wasn't passed, assume the whole item quantity was removed
+        removedQuantity: parseInt(removedQuantity) || result.quantity, 
+        unit: unit || result.unit 
     }, pantryId);
 
     return NextResponse.json({ message: 'Item deleted' });

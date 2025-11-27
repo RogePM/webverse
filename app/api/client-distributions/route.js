@@ -3,9 +3,21 @@ import connectDB from '@/lib/db';
 import { ClientDistribution } from '@/lib/models/ClientDistributionModel';
 import { ChangeLog } from '@/lib/models/ChangeLogModel';
 
-// --- Helper: Log Changes ---
+// --- FIXED Helper: Log Changes ---
 const logChange = async (actionType, item, changes = null, metadata = {}, pantryId) => {
   try {
+    const qty = metadata.removedQuantity || 0;
+    const unit = (metadata.unit || 'units').toLowerCase();
+
+    // Calculate Metrics
+    let weight = 0;
+    if (unit === 'lbs') weight = qty;
+    else if (unit === 'kg') weight = qty * 2.20462;
+    else if (unit === 'oz') weight = qty / 16;
+    else weight = qty * 1; 
+
+    const value = weight * 2.50;
+
     await ChangeLog.create({
       pantryId,
       actionType,
@@ -13,12 +25,25 @@ const logChange = async (actionType, item, changes = null, metadata = {}, pantry
       itemName: item.name,
       category: item.category,
       changes,
+      
+      // Quantity Data
+      quantityChanged: qty,
+      unit: metadata.unit,
+
       // Metadata
       distributionReason: metadata.reason,
       clientName: metadata.clientName,
       clientId: metadata.clientId,
-      removedQuantity: metadata.removedQuantity,
-      unit: metadata.unit,
+      removedQuantity: qty,
+      
+      // Impact Data
+      impactMetrics: {
+        peopleServed: 1,
+        estimatedValue: parseFloat(value.toFixed(2)),
+        standardizedWeight: parseFloat(weight.toFixed(2)),
+        wasteDiverted: false
+      },
+      
       timestamp: new Date()
     });
   } catch (e) {
@@ -62,7 +87,6 @@ export async function POST(req) {
     });
 
     // 2. Log to History
-    // Note: We construct the log data carefully to match the schema
     await logChange('distributed', {
         _id: data.itemId,
         name: data.itemName,
@@ -71,7 +95,7 @@ export async function POST(req) {
         reason: data.reason,
         clientName: data.clientName,
         clientId: data.clientId,
-        removedQuantity: data.quantityDistributed, // Map this field correctly
+        removedQuantity: data.quantityDistributed, // Ensure this maps to removedQuantity in helper
         unit: data.unit
     }, pantryId);
 
