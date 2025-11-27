@@ -1,16 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  ScanBarcode, 
-  Package, 
-  Weight, 
-  Wand2, 
-  Loader2, 
-  ArrowLeft, 
-  Camera, 
+import {
+  ScanBarcode,
+  Package,
+  Weight,
+  Wand2,
+  Loader2,
+  ArrowLeft,
+  Camera,
   X,
-  ChevronDown 
+  ChevronDown
 } from 'lucide-react';
 
 // IMPORT THE NEW HOOK
@@ -23,6 +23,7 @@ import { SheetHeader, SheetTitle } from '@/components/ui/SheetCart';
 import { categories } from '@/lib/constants';
 import { usePantry } from '@/components/providers/PantryProvider';
 
+import { UpgradeModal } from '@/components/modals/UpgradeModal';
 export function AddItemForm({ initialCategory, onClose }) {
   const { pantryId } = usePantry();
 
@@ -40,6 +41,7 @@ export function AddItemForm({ initialCategory, onClose }) {
   const [isLoadingBarcode, setIsLoadingBarcode] = useState(false);
   const [showScanner, setShowScanner] = useState(false); // Controls Camera Overlay
 
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   // --- LOGIC: Internal Barcode ---
   const generateInternalBarcode = () => {
     const randomCode = Math.floor(100000 + Math.random() * 900000);
@@ -71,11 +73,13 @@ export function AddItemForm({ initialCategory, onClose }) {
     return () => clearTimeout(timeout);
   }, [barcode, isInternalBarcode, pantryId, category]);
 
-  // --- LOGIC: Submit ---
+  // --- UPDATED SUBMIT LOGIC ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!itemName || !quantity) return;
+
     setIsSubmitting(true);
+
     try {
       const finalBarcode = barcode.trim() || `GEN-${Date.now().toString().slice(-6)}`;
       const res = await fetch('/api/foods', {
@@ -86,15 +90,23 @@ export function AddItemForm({ initialCategory, onClose }) {
           name: itemName,
           category,
           quantity: parseFloat(quantity),
-          unit, // Sends 'units', 'lbs', 'kg', or 'oz'
+          unit,
           expirationDate,
         })
       });
+
+      // --- 🔥 FIX: OPEN MODAL ON 403 ERROR ---
+      if (res.status === 403) {
+        setIsSubmitting(false);
+        setShowUpgradeModal(true); // <--- Pop the modal
+        return;
+      }
+
       if (!res.ok) throw new Error("Failed");
+
       onClose();
     } catch (err) {
-      alert("Error adding item");
-    } finally {
+      alert("Error adding item. Please try again.");
       setIsSubmitting(false);
     }
   };
@@ -105,7 +117,10 @@ export function AddItemForm({ initialCategory, onClose }) {
 
   return (
     <div className="flex flex-col h-full bg-gray-50/50 relative">
-
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+      />
       {/* CAMERA OVERLAY (Shows when showScanner is true) */}
       {showScanner && (
         <div className="absolute inset-0 z-50 bg-black flex flex-col">
@@ -116,14 +131,14 @@ export function AddItemForm({ initialCategory, onClose }) {
             </Button>
           </div>
           <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
-            
+
             {/* LOADING STATE - (Optional: zxing loads very fast, but keeping for UI consistency) */}
             <div className="absolute text-white/50 text-sm z-0 flex items-center gap-2">
               <Loader2 className="animate-spin h-4 w-4" /> Starting Camera...
             </div>
 
             {/* NEW SCANNER IMPLEMENTATION */}
-            <ScannerWrapper 
+            <ScannerWrapper
               onScan={(result) => {
                 setBarcode(result);
                 setShowScanner(false);
@@ -132,7 +147,7 @@ export function AddItemForm({ initialCategory, onClose }) {
                 console.error("Scanner Error:", error);
                 // Only alert on critical errors to avoid spamming the user
                 if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
-                    alert("Camera Error: Could not access camera.");
+                  alert("Camera Error: Could not access camera.");
                 }
               }}
             />
@@ -314,10 +329,14 @@ export function AddItemForm({ initialCategory, onClose }) {
 function ScannerWrapper({ onScan, onError }) {
   // FIX 1: Memoize constraints so they don't trigger a camera restart on every render
   const constraints = useMemo(() => ({
-    video: { 
-      facingMode: "environment" 
+    video: {
+      facingMode: "environment",
+      width: { min: 1280, ideal: 1920 },
+      height: { min: 720, ideal: 1080 },
+      aspectRatio: { ideal: 1.777 }, // 16:9 ratio fills phone screens better
+      focusMode: "continuous"
     },
-    audio: false 
+    audio: false
   }), []);
 
   const { ref } = useZxing({
@@ -327,16 +346,16 @@ function ScannerWrapper({ onScan, onError }) {
     onError(error) {
       if (onError) onError(error);
     },
-    constraints: constraints, // Pass the memoized object
-    timeBetweenDecodingAttempts: 300, // Optional: Reduces CPU load
+    constraints: constraints,
+    timeBetweenDecodingAttempts: 300,
   });
 
   return (
-    <video 
-      ref={ref} 
-      className="w-full h-full object-cover relative z-10" 
-      muted        // Required for autoplay
-      playsInline  // FIX 2: Required for iOS/Mobile browsers to prevent fullscreen takeover
+    <video
+      ref={ref}
+      className="w-full h-full object-cover"
+      muted
+      playsInline
     />
   );
 }

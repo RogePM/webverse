@@ -2,8 +2,8 @@ import './globals.css';
 import { PantryProvider } from '@/components/providers/PantryProvider';
 
 export const metadata = {
-  title: 'FoodBank Admin | Inventory Management',
-  description: 'FoodBank inventory management system',
+  title: 'Food Arca | Food Bank Inventory Management',
+  description: 'Food Bank inventory management system',
 };
 
 export default function RootLayout({ children }) {

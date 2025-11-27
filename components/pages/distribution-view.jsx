@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, ShoppingCart, Plus, PackageOpen, 
   ArrowRight, ChevronUp, Calendar, AlertTriangle, X, Camera, Loader2,
-  Package // Icon for title
+  Package, // Icon for title
+  ScanBarcode // <--- NEW IMPORT
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -281,6 +282,7 @@ export function DistributionView() {
                                         `}
                                     >
                                         <div className="p-4 w-full">
+                                            {/* Top: Badges */}
                                             <div className="flex justify-between items-start mb-2">
                                                 <Badge variant="outline" className="font-normal text-[10px] text-gray-500 bg-gray-50">
                                                     {formatCategory(item.category)}
@@ -292,23 +294,42 @@ export function DistributionView() {
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <h3 className="font-bold text-gray-900 truncate pr-8 text-base mb-1">{item.name}</h3>
-                                            <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                                <Calendar className="h-3 w-3" /> Exp: {formatDate(item.expirationDate)}
-                                            </div>
-                                        </div>
-                                        <div className="mt-auto border-t bg-gray-50/50 p-3 flex items-center justify-between w-full">
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] uppercase font-bold text-gray-400">Available</span>
-                                                <span className={`text-sm font-bold ${isOOS ? 'text-red-500' : 'text-gray-700'}`}>
-                                                    {isOOS ? "0" : Math.round(available * 100) / 100} <span className="text-[10px] font-normal text-gray-500">{item.unit || 'units'}</span>
-                                                </span>
-                                            </div>
-                                            {!isOOS && (
-                                                <div className="h-8 w-8 rounded-full bg-[#d97757] text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                                                    <Plus className="h-4 w-4" />
+
+                                            {/* Middle: Name & Data */}
+                                            <div className="mb-2">
+                                                <h3 className="font-bold text-gray-900 truncate pr-8 text-base mb-1.5">{item.name}</h3>
+                                                
+                                                <div className="flex flex-col gap-1.5">
+                                                    {/* Expiration */}
+                                                    <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                                        <Calendar className="h-3.5 w-3.5 opacity-70" /> 
+                                                        <span>Exp: {formatDate(item.expirationDate)}</span>
+                                                    </div>
+
+                                                    {/* --- NEW: Barcode Display --- */}
+                                                    <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                                        <ScanBarcode className="h-3.5 w-3.5 opacity-70" />
+                                                        <span className="font-mono text-[10px] tracking-wide bg-gray-50 px-1 py-0.5 rounded border border-gray-100">
+                                                            {item.barcode || 'N/A'}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            )}
+                                            </div>
+
+                                            {/* Bottom: Stock & Add Button */}
+                                            <div className="mt-auto border-t bg-gray-50/50 p-3 flex items-center justify-between w-full">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] uppercase font-bold text-gray-400">Available</span>
+                                                    <span className={`text-sm font-bold ${isOOS ? 'text-red-500' : 'text-gray-700'}`}>
+                                                        {isOOS ? "0" : Math.round(available * 100) / 100} <span className="text-[10px] font-normal text-gray-500">{item.unit || 'units'}</span>
+                                                    </span>
+                                                </div>
+                                                {!isOOS && (
+                                                    <div className="h-8 w-8 rounded-full bg-[#d97757] text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                                                        <Plus className="h-4 w-4" />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </button>
                                 );

@@ -1,61 +1,90 @@
 import { NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import connectDB from '@/lib/db';
 import { FoodItem } from '@/lib/models/FoodItemModel';
-import { ChangeLog } from '@/lib/models/ChangeLogModel';
+import { ClientDistribution } from '@/lib/models/ClientDistributionModel';
 
-// ⚠️ NOTE: There is NO 'export default' in this file. 
-// Only named exports like 'GET' are allowed in route.js files.
+// --- AUTHENTICATION HELPER ---
+async function authenticateRequest(req) {
+  const cookieStore = await cookies();
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll(); },
+      },
+    }
+  );
+
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error || !user) {
+    return { authenticated: false, user: null, error: 'Unauthorized' };
+  }
+
+  return { authenticated: true, user, error: null };
+}
 
 export async function GET(req) {
   try {
+    // ✅ AUTH CHECK
+    const auth = await authenticateRequest(req);
+    if (!auth.authenticated) {
+      console.log('❌ GET /api/dashboard - Unauthorized');
+      return NextResponse.json({ message: auth.error }, { status: 401 });
+    }
+
     const pantryId = req.headers.get('x-pantry-id');
     
     if (!pantryId) {
+      console.log('❌ GET /api/dashboard - No pantry ID');
       return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
     }
 
+    console.log('✅ GET /api/dashboard - User:', auth.user.email, 'Pantry:', pantryId);
+
     await connectDB();
 
-    // 1. Get Total Inventory Count
-    // This counts how many unique items are currently in the database
+    // 1. Get Stock Count
     const totalItemsCount = await FoodItem.countDocuments({ pantryId });
+    console.log('📊 Total items in stock:', totalItemsCount);
 
-    // 2. Aggregate Impact Metrics from ChangeLog
-    // We calculate the total sum of value, weight, and people served based on 'distributed' logs
-    const impactStats = await ChangeLog.aggregate([
+    // 2. Get Distribution Stats
+    const distributionStats = await ClientDistribution.aggregate([
       { 
-        $match: { 
-          pantryId: pantryId, 
-          actionType: 'distributed' 
-        } 
+        $match: { pantryId: pantryId } 
       },
       {
         $group: {
           _id: null,
-          totalPeopleServed: { $sum: "$impactMetrics.peopleServed" },
-          totalValue: { $sum: "$impactMetrics.estimatedValue" },
-          totalWeight: { $sum: "$impactMetrics.standardizedWeight" },
-          totalDistributions: { $sum: 1 }
+          totalVisits: { $sum: 1 },
+          totalItemsDistributed: { $sum: "$quantityDistributed" }
         }
       }
     ]);
 
-    // If no distributions yet, return 0s
-    const stats = impactStats[0] || { 
-        totalPeopleServed: 0, 
-        totalValue: 0, 
-        totalWeight: 0,
-        totalDistributions: 0 
+    const distData = distributionStats[0] || { totalVisits: 0, totalItemsDistributed: 0 };
+    console.log('📊 Distribution stats:', distData);
+
+    // 3. Calculate estimates
+    const estimatedWeight = distData.totalItemsDistributed; 
+    const estimatedValue = distData.totalItemsDistributed * 2.50;
+
+    const response = {
+      inventoryCount: totalItemsCount,
+      totalPeopleServed: distData.totalVisits,
+      totalValue: estimatedValue,
+      totalWeight: estimatedWeight
     };
 
-    // Return the combined data
-    return NextResponse.json({
-      inventoryCount: totalItemsCount,
-      ...stats
-    });
+    console.log('✅ GET /api/dashboard - Success:', response);
+    return NextResponse.json(response);
 
   } catch (error) {
-    console.error("Dashboard Stats Error:", error);
+    console.error('❌ GET /api/dashboard - Error:', error);
     return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }

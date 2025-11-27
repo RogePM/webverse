@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-// 1. USE THE NEW SHEET COMPONENT (Matches your Add Item Modal)
 import { 
   Sheet, 
   SheetContent, 
@@ -34,7 +33,7 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
     name: '',
     category: '',
     quantity: '',
-    unit: 'units', // Added Unit to state
+    unit: 'units',
     expirationDate: '',
     storageLocation: '',
   });
@@ -50,7 +49,7 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
         name: item.name || '',
         category: item.category || CATEGORY_OPTIONS[0].value,
         quantity: item.quantity?.toString() || '',
-        unit: item.unit || 'units', // Load existing unit
+        unit: item.unit || 'units',
         expirationDate: item.expirationDate
           ? format(new Date(item.expirationDate), 'yyyy-MM-dd')
           : '',
@@ -78,7 +77,6 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
             'Content-Type': 'application/json',
             'x-pantry-id': pantryId
         },
-        // Parse quantity to float to ensure decimals are sent correctly
         body: JSON.stringify({
             ...formData,
             quantity: parseFloat(formData.quantity)
@@ -88,7 +86,7 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
       if (res.ok) {
         setMessage('✅ Saved');
         setTimeout(() => {
-            onItemUpdated?.(); // Refresh parent list
+            onItemUpdated?.();
         }, 500);
       } else {
         setMessage('Failed to update.');
@@ -125,14 +123,15 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
     }
   };
 
-  const brandColor = "#d97757";
-
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col h-full p-0 bg-white">
+      {/* MOBILE FIX 1: h-[100dvh] 
+         Use 'dvh' (dynamic viewport height) so it respects the mobile URL bar. 
+      */}
+      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col h-[100dvh] p-0 bg-white">
         
-        {/* HEADER */}
-        <SheetHeader className="px-6 py-5 border-b">
+        {/* HEADER - Fixed at top */}
+        <SheetHeader className="px-6 py-4 border-b shrink-0">
           <SheetTitle className="text-xl font-bold text-gray-900">Edit Item</SheetTitle>
           {message && (
              <div className={`text-sm font-medium px-3 py-1 rounded-md mt-2 w-fit ${
@@ -143,18 +142,22 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
           )}
         </SheetHeader>
 
-        {/* FORM BODY */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        {/* BODY - Scrollable Area 
+           flex-1 makes it take up remaining space.
+           overflow-y-auto allows ONLY this part to scroll.
+        */}
+        <form id="inventory-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
             
             {/* Name */}
             <div className="space-y-2">
                 <Label htmlFor="name" className="text-xs font-bold text-gray-500 uppercase">Item Name</Label>
+                {/* MOBILE FIX 2: text-base prevents iOS zoom */}
                 <Input
                     id="name"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    className="h-11 bg-gray-50 border-gray-200 focus-visible:ring-[#d97757]"
+                    className="h-12 text-base md:text-sm bg-gray-50 border-gray-200 focus-visible:ring-[#d97757]"
                     required
                 />
             </div>
@@ -167,7 +170,7 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
                         name="category"
                         value={formData.category}
                         onChange={handleChange}
-                        className="w-full h-11 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#d97757]"
+                        className="w-full h-12 text-base md:text-sm rounded-md border border-gray-200 bg-gray-50 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#d97757]"
                     >
                         {CATEGORY_OPTIONS.map((cat) => (
                             <option key={cat.value} value={cat.value}>{cat.name}</option>
@@ -184,11 +187,10 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
                         id="quantity"
                         name="quantity"
                         type="number"
-                        // FIX: step="any" allows decimals like 23.1
                         step="any" 
                         value={formData.quantity}
                         onChange={handleChange}
-                        className="h-11 bg-gray-50 border-gray-200 focus-visible:ring-[#d97757]"
+                        className="h-12 text-base md:text-sm bg-gray-50 border-gray-200 focus-visible:ring-[#d97757]"
                         required
                     />
                 </div>
@@ -199,21 +201,21 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
                             name="unit"
                             value={formData.unit}
                             onChange={handleChange}
-                            className="w-full h-11 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#d97757]"
+                            className="w-full h-12 text-base md:text-sm rounded-md border border-gray-200 bg-gray-50 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#d97757]"
                         >
                             <option value="units">Units</option>
                             <option value="lbs">Lbs</option>
                             <option value="kg">Kg</option>
                             <option value="oz">Oz</option>
                         </select>
-                        <div className="absolute right-2 top-3 pointer-events-none text-gray-400">
+                        <div className="absolute right-2 top-3.5 pointer-events-none text-gray-400">
                            {formData.unit === 'units' ? <Package className="h-4 w-4"/> : <Weight className="h-4 w-4"/>} 
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Expiration */}
+            {/* Expiration - Included as requested */}
             <div className="space-y-2">
                 <Label htmlFor="expirationDate" className="text-xs font-bold text-gray-500 uppercase">Expiration Date</Label>
                 <div className="relative">
@@ -223,9 +225,9 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
                         type="date"
                         value={formData.expirationDate}
                         onChange={handleChange}
-                        className="h-11 bg-gray-50 border-gray-200 focus-visible:ring-[#d97757]"
+                        className="h-12 text-base md:text-sm bg-gray-50 border-gray-200 focus-visible:ring-[#d97757]"
                     />
-                    <Calendar className="absolute right-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
+                    <Calendar className="absolute right-3 top-3.5 h-5 w-5 text-gray-400 pointer-events-none" />
                 </div>
             </div>
 
@@ -239,21 +241,28 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
                         value={formData.storageLocation}
                         onChange={handleChange}
                         placeholder="e.g. Shelf A"
-                        className="h-11 bg-gray-50 border-gray-200 focus-visible:ring-[#d97757]"
+                        className="h-12 text-base md:text-sm bg-gray-50 border-gray-200 focus-visible:ring-[#d97757]"
                     />
-                    <MapPin className="absolute right-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
+                    <MapPin className="absolute right-3 top-3.5 h-5 w-5 text-gray-400 pointer-events-none" />
                 </div>
             </div>
+            
+            {/* Extra padding at bottom of form so the last input 
+               doesn't get stuck behind a keyboard or scrolling edge 
+            */}
+            <div className="h-6"></div>
         </form>
 
-        {/* FOOTER */}
-        <SheetFooter className="p-6 border-t bg-gray-50 flex flex-row justify-between items-center sm:justify-between gap-3">
-            {/* DELETE BUTTON */}
+        {/* FOOTER - Sticky at bottom 
+            shrink-0 prevents it from being squished.
+            pb-safe ensures it respects iPhone home button area.
+        */}
+        <SheetFooter className="p-6 border-t bg-gray-50 flex flex-row justify-between items-center sm:justify-between gap-3 shrink-0 z-10 pb-8 sm:pb-6">
             <Button 
                 type="button" 
                 variant="destructive" 
                 size="icon"
-                className="h-11 w-11 shrink-0 bg-red-100 text-red-600 hover:bg-red-200 border border-red-200"
+                className="h-12 w-12 shrink-0 bg-red-100 text-red-600 hover:bg-red-200 border border-red-200"
                 onClick={handleDelete}
                 disabled={isDeleting || isSaving}
             >
@@ -265,18 +274,19 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
                     type="button" 
                     variant="outline" 
                     onClick={() => onOpenChange(false)}
-                    className="h-11"
+                    className="h-12 text-base"
                 >
                     Cancel
                 </Button>
                 <Button 
-                    type="button" 
-                    onClick={handleSubmit} 
+                    type="submit" 
+                    // Link button to form ID so it works even outside the <form> tag
+                    form="inventory-form"
                     disabled={isSaving || isDeleting || !pantryId}
-                    className="h-11 bg-[#d97757] hover:bg-[#c06245] text-white min-w-[120px]"
+                    className="h-12 text-base bg-[#d97757] hover:bg-[#c06245] text-white min-w-[120px]"
                 >
                     {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                    {isSaving ? 'Saving...' : 'Save Changes'}
+                    {isSaving ? 'Saving...' : 'Save'}
                 </Button>
             </div>
         </SheetFooter>

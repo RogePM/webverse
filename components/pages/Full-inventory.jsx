@@ -8,12 +8,12 @@ import {
     AlertTriangle,
     PackageOpen,
     Pencil,
-    Package // Icon for header
+    Package, // Icon for header
+    ScanBarcode // <--- NEW ICON IMPORT
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { InventoryFormBar } from '@/components/pages/InventoryForm.jsx';
 import { categories as CATEGORY_OPTIONS } from '@/lib/constants';
@@ -126,7 +126,7 @@ export function InventoryView() {
             <div className="p-4 border-b bg-white z-10 sticky top-0">
                 <div className="max-w-7xl mx-auto w-full">
                     
-                    {/* Title Section (Consistent with other pages) */}
+                    {/* Title Section */}
                     <div className="mb-4">
                         <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                             <Package className="h-5 w-5 text-[#d97757]" />
@@ -139,7 +139,7 @@ export function InventoryView() {
                         {/* SEARCH LOGIC */}
                         <div className="relative flex-1">
                             {!isSearchActive && !searchQuery ? (
-                                /* STATE 1: THE BUTTON (Prevents Keyboard Popup) */
+                                /* STATE 1: THE BUTTON */
                                 <Button
                                     variant="outline"
                                     className="w-full h-11 justify-start text-muted-foreground bg-gray-50 border-gray-200 hover:bg-white hover:border-[#d97757] transition-all text-base font-normal"
@@ -152,7 +152,7 @@ export function InventoryView() {
                                     Search inventory...
                                 </Button>
                             ) : (
-                                /* STATE 2: THE REAL INPUT (Active) */
+                                /* STATE 2: THE REAL INPUT */
                                 <div className="relative w-full animate-in fade-in zoom-in-95 duration-200">
                                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                     <Input
@@ -241,12 +241,27 @@ export function InventoryView() {
                                                         )}
                                                     </div>
 
-                                                    {/* Middle Row: Name & Date */}
-                                                    <h3 className="font-bold text-gray-900 truncate pr-2 text-base mb-1">
-                                                        {item.name}
-                                                    </h3>
-                                                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                                        <Calendar className="h-3 w-3" /> Exp: {formatDate(item.expirationDate)}
+                                                    {/* Middle Row: Name & Metadata */}
+                                                    <div className="mb-3">
+                                                        <h3 className="font-bold text-gray-900 truncate pr-2 text-base mb-1.5">
+                                                            {item.name}
+                                                        </h3>
+                                                        
+                                                        {/* --- UPDATED METADATA ROW --- */}
+                                                        <div className="flex flex-col gap-1.5">
+                                                            {/* Date */}
+                                                            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                                                <Calendar className="h-3.5 w-3.5 opacity-70" /> 
+                                                                <span>Exp: {formatDate(item.expirationDate)}</span>
+                                                            </div>
+                                                            {/* Barcode Display */}
+                                                            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                                                <ScanBarcode className="h-3.5 w-3.5 opacity-70" />
+                                                                <span className="font-mono text-[10px] tracking-wide bg-gray-50 px-1 py-0.5 rounded border border-gray-100">
+                                                                    {item.barcode || 'N/A'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -259,7 +274,6 @@ export function InventoryView() {
                                                         </span>
                                                     </div>
 
-                                                    {/* Edit Icon Circle */}
                                                     <div className="h-8 w-8 rounded-full bg-white border border-gray-200 text-gray-500 flex items-center justify-center shadow-sm group-hover:border-[#d97757] group-hover:text-[#d97757] transition-colors">
                                                         <Pencil className="h-3.5 w-3.5" />
                                                     </div>

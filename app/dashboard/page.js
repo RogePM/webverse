@@ -2,7 +2,6 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-// FIX: Import from the NEW file name
 import DashboardClientApp from './client-page'; 
 
 export default async function DashboardPage() {
@@ -29,17 +28,36 @@ export default async function DashboardPage() {
     }
   );
 
+  // ✅ FIX: Use getUser() instead of getSession()
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+    error
+  } = await supabase.auth.getUser();
 
-  // 1. Security: Redirect if not logged in
-  if (!session) {
+  // 1. Security: Redirect if not logged in or auth error
+  if (error || !user) {
+    console.log('❌ Server-side: No valid user, redirecting to login');
     redirect('/');
   }
 
-  console.log('✅ Server-side: User is logged in');
+  console.log('✅ Server-side: User is authenticated:', user.email);
 
-  // 2. Pass session to client
-  return <DashboardClientApp initialSession={session} />;
+  // 2. Optionally fetch user's pantry data here on the server
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('current_pantry_id, name')
+    .eq('user_id', user.id)
+    .single();
+
+  // 3. Pass user data to client (not the full session for security)
+  return (
+    <DashboardClientApp 
+      initialUser={{
+        id: user.id,
+        email: user.email,
+        name: profile?.name || user.user_metadata?.full_name
+      }}
+      initialPantryId={profile?.current_pantry_id}
+    />
+  );
 }

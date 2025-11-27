@@ -12,10 +12,15 @@ import { usePantry } from '@/components/providers/PantryProvider';
 import { SettingsView } from '@/components/pages/settings-view';
 import { DistributionView } from '@/components/pages/distribution-view';
 
-export default function DashboardClientApp() {
-  // State only tracks the View, not the Session (Server handles that)
+export default function DashboardClientApp({ initialUser, initialPantryId }) {
   const [activeView, setActiveView] = useState('Dashboard');
   const { isLoading: isPantryLoading } = usePantry();
+
+  // Log the initial data we received from the server
+  useEffect(() => {
+    console.log('✅ Client: Received user data:', initialUser);
+    console.log('✅ Client: Pantry ID:', initialPantryId);
+  }, [initialUser, initialPantryId]);
 
   // 1. URL Persistence
   useEffect(() => {
@@ -49,6 +54,16 @@ export default function DashboardClientApp() {
       );
     }
 
+    // If no pantry ID, show onboarding message
+    if (!initialPantryId && !isPantryLoading) {
+      return (
+        <div className="flex h-[50vh] flex-col items-center justify-center text-muted-foreground">
+          <p className="text-lg mb-4">No organization found.</p>
+          <p className="text-sm">Please complete onboarding or contact support.</p>
+        </div>
+      );
+    }
+
     switch (activeView) {
       case 'Dashboard': return <DashboardHome setActiveView={setActiveView} />;
       case 'Add Items': return <AddItemView />;
@@ -56,8 +71,7 @@ export default function DashboardClientApp() {
       case 'View Inventory': return <InventoryView />;
       case 'Recent Changes': return <RecentChangesView />;
       case 'View Clients': return <ClientListView />;
-      case 'Settings':
-        return <SettingsView />;
+      case 'Settings': return <SettingsView />;
       default: return <DashboardHome setActiveView={setActiveView} />;
     }
   };
