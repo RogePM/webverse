@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Search, ShoppingCart, Plus, PackageOpen, 
   ArrowRight, ChevronUp, Calendar, AlertTriangle, X, Camera, Loader2,
-  Package, // Icon for title
-  ScanBarcode // <--- NEW IMPORT
+  Package, ScanBarcode
 } from 'lucide-react';
+import { useZxing } from "react-zxing";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -14,11 +14,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/SheetCart';
 import { usePantry } from '@/components/providers/PantryProvider';
-
-// Import Scanner
-import BarcodeScannerComponent from "react-qr-barcode-scanner";
-
-// --- IMPORT THE NEW CART COMPONENT ---
 import { DistributionCart } from './distribution-cart';
 
 // --- HELPERS ---
@@ -54,6 +49,7 @@ export function DistributionView() {
   const [filteredItems, setFilteredItems] = useState([]);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [showScanner, setShowScanner] = useState(false); 
+  const [isLookingUp, setIsLookingUp] = useState(false);
   const searchInputRef = useRef(null);
 
   // Cart State
@@ -103,12 +99,37 @@ export function DistributionView() {
     setFilteredItems(results);
   }, [searchQuery, inventory]);
 
-  // Handle Scan Result
-  const handleScan = (err, result) => {
-      if (result) {
-          setSearchQuery(result.text);
-          setShowScanner(false); 
+  // --- NEW: Handle Barcode Scanned ---
+  const handleBarcodeScanned = async (barcode) => {
+    console.log('📷 Scanned barcode:', barcode);
+    setShowScanner(false);
+    setIsLookingUp(true);
+
+    try {
+      const res = await fetch(`/api/barcode/${encodeURIComponent(barcode)}`, {
+        headers: { 'x-pantry-id': pantryId }
+      });
+      const data = await res.json();
+
+      if (data.found && data.data) {
+        console.log('✅ Found item:', data.data.name);
+        // Try to find in current inventory
+        const inventoryItem = inventory.find(item => item._id === data.data._id || item.barcode === barcode);
+        if (inventoryItem) {
+          addToCart(inventoryItem);
+        } else {
+          // Set search query to show the item
+          setSearchQuery(data.data.name);
+        }
+      } else {
+        alert('Item not found in inventory');
       }
+    } catch (error) {
+      console.error('❌ Barcode lookup error:', error);
+      alert('Error looking up barcode');
+    } finally {
+      setIsLookingUp(false);
+    }
   };
 
   const addToCart = (item) => {
@@ -149,35 +170,73 @@ export function DistributionView() {
       fetchInventory(); 
   };
 
+  // Handler for cart scanner
+  const handleAddItemByBarcode = (itemData) => {
+    const inventoryItem = inventory.find(item => item._id === itemData._id);
+    if (inventoryItem) {
+      addToCart(inventoryItem);
+    }
+  };
+
   return (
     <div className="relative flex flex-col h-[calc(100vh-6rem)] bg-white">
       
-      {/* --- CAMERA OVERLAY (Z-Index High) --- */}
+      {/* --- ENHANCED ZXING CAMERA OVERLAY --- */}
       {showScanner && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in fade-in duration-200">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 bg-black/80 absolute top-0 left-0 right-0 z-10">
-                <span className="text-white font-medium flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#d97757]" /> Finding Barcode...
-                </span>
-                <Button variant="ghost" className="text-white hover:bg-white/20 rounded-full h-10 w-10 p-0" onClick={() => setShowScanner(false)}>
-                    <X className="h-6 w-6" />
-                </Button>
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+          <div className="flex items-center justify-between p-4 bg-black/50 absolute top-0 left-0 right-0 z-10">
+            <span className="text-white font-medium">Scan Item Barcode</span>
+            <Button 
+              variant="ghost" 
+              className="text-white hover:bg-white/20" 
+              onClick={() => setShowScanner(false)}
+            >
+              <X className="h-6 w-6" />
+            </Button>
+          </div>
+          
+          <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
+            <div className="absolute text-white/50 text-sm z-0 flex items-center gap-2">
+              <Loader2 className="animate-spin h-4 w-4" /> Starting Camera...
             </div>
             
-            {/* Scanner Area */}
-            <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
-                <BarcodeScannerComponent
-                    width={500}
-                    height={800}
-                    facingMode="environment"
-                    onUpdate={handleScan}
-                    videoStyle={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-                {/* Guide Box */}
-                <div className="absolute border-2 border-[#d97757] w-72 h-48 rounded-lg opacity-80 pointer-events-none shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]"></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-0.5 bg-red-500 shadow-[0_0_10px_red] animate-pulse"></div>
-            </div>
+            <EnhancedScannerWrapper
+              onScan={handleBarcodeScanned}
+              onError={(error) => {
+                console.error("Scanner Error:", error);
+                if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
+                  alert("Camera Error: Could not access camera.");
+                }
+              }}
+            />
+            
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowScanner(false)}
+              className="absolute top-4 right-4 z-50 bg-black/50 text-white hover:bg-black/70 rounded-full h-12 w-12 backdrop-blur-md border border-white/10"
+            >
+              <X className="h-6 w-6" />
+            </Button>
+            
+            {/* Visual Guide Box */}
+            <div className="absolute border-2 border-[#d97757] w-64 h-40 rounded-lg opacity-50 pointer-events-none animate-pulse z-10"></div>
+          </div>
+          
+          <div className="p-8 text-center text-white/70 text-sm">
+            Point camera at barcode to add item
+          </div>
+        </div>
+      )}
+
+      {/* LOADING OVERLAY */}
+      {isLookingUp && (
+        <div className="fixed inset-0 bg-black/50 z-[90] flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg shadow-xl flex items-center gap-3">
+            <Loader2 className="animate-spin h-5 w-5 text-[#d97757]" />
+            <span className="font-medium">Looking up item...</span>
+          </div>
         </div>
       )}
 
@@ -306,7 +365,7 @@ export function DistributionView() {
                                                         <span>Exp: {formatDate(item.expirationDate)}</span>
                                                     </div>
 
-                                                    {/* --- NEW: Barcode Display --- */}
+                                                    {/* Barcode Display */}
                                                     <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                                                         <ScanBarcode className="h-3.5 w-3.5 opacity-70" />
                                                         <span className="font-mono text-[10px] tracking-wide bg-gray-50 px-1 py-0.5 rounded border border-gray-100">
@@ -346,7 +405,7 @@ export function DistributionView() {
             </div>
         </div>
 
-        {/* RIGHT: Desktop Cart Sidebar (Fixed to right column) */}
+        {/* RIGHT: Desktop Cart Sidebar */}
         <div className="hidden lg:flex lg:col-span-1 flex-col h-full bg-white border-l border-gray-200 shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)] z-20">
             <div className="p-4 border-b bg-white">
                 <h3 className="font-bold text-lg flex items-center gap-2">
@@ -363,6 +422,7 @@ export function DistributionView() {
                     onUpdateQty={updateCartQty}
                     onRemove={removeFromCart}
                     onCheckoutSuccess={handleCheckoutSuccess}
+                    onAddItemByBarcode={handleAddItemByBarcode}
                 />
             </div>
         </div>
@@ -399,6 +459,7 @@ export function DistributionView() {
                             onUpdateQty={updateCartQty}
                             onRemove={removeFromCart}
                             onCheckoutSuccess={handleCheckoutSuccess}
+                            onAddItemByBarcode={handleAddItemByBarcode}
                         />
                     </div>
                 </SheetContent>
@@ -411,5 +472,39 @@ export function DistributionView() {
       </div>
 
     </div>
+  );
+}
+
+// ENHANCED SCANNER COMPONENT
+function EnhancedScannerWrapper({ onScan, onError }) {
+  const constraints = useMemo(() => ({
+    video: {
+      facingMode: "environment",
+      width: { min: 1280, ideal: 1920 },
+      height: { min: 720, ideal: 1080 },
+      aspectRatio: { ideal: 1.777 },
+      focusMode: "continuous"
+    },
+    audio: false
+  }), []);
+
+  const { ref } = useZxing({
+    onDecodeResult(result) {
+      onScan(result.getText());
+    },
+    onError(error) {
+      if (onError) onError(error);
+    },
+    constraints: constraints,
+    timeBetweenDecodingAttempts: 300,
+  });
+
+  return (
+    <video
+      ref={ref}
+      className="w-full h-full object-cover"
+      muted
+      playsInline
+    />
   );
 }
