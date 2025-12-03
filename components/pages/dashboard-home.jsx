@@ -24,19 +24,19 @@ function StatCard({ title, value, subtitle, icon: Icon, delay, loading }) {
       className="h-full"
     >
       <div className="group relative h-full bg-white rounded-2xl border border-gray-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-6px_rgba(0,0,0,0.1)] transition-all duration-300 overflow-hidden">
-        
+
         {/* HOVER GLOW EFFECT: A subtle orange light that fades in from the bottom */}
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#d97757] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         <div className="absolute inset-0 bg-gradient-to-tr from-[#d97757]/0 via-[#d97757]/0 to-[#d97757]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
         <div className="p-5 flex flex-col justify-between h-full relative z-10">
-          
+
           {/* HEADER: Title & Icon */}
           <div className="flex justify-between items-start mb-4">
             <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
               {title}
             </span>
-            
+
             {/* Icon Container: Soft background, high quality look */}
             <div className="h-8 w-8 rounded-full bg-[#d97757]/10 flex items-center justify-center text-[#d97757] group-hover:scale-110 transition-transform duration-300">
               <Icon className="h-4 w-4" strokeWidth={2} />
@@ -51,12 +51,12 @@ function StatCard({ title, value, subtitle, icon: Icon, delay, loading }) {
             ) : (
               <div className="flex items-baseline gap-2">
                 {/* Tracking-tighter makes numbers look solid and premium */}
-                <h3 className="text-3xl lg:text-4xl font-bold text-gray-900 tracking-tighter tabular-nums">
+                <h3 className="text-3xl lg:text-4xl font-bold text-[#518c45] tracking-tighter tabular-nums">
                   {value}
                 </h3>
               </div>
             )}
-            
+
             {/* Subtitle with a tiny arrow interaction */}
             <div className="flex items-center gap-1 mt-1">
               <p className="text-xs text-gray-500 font-medium leading-tight truncate">
@@ -93,7 +93,7 @@ function ActionCard({ item, onClick, index }) {
         /* Desktop: Horizontal layout */
         md:flex-row md:items-center md:justify-start md:px-6 md:py-5 md:gap-5
       `}>
-        
+
         {/* ICON CONTAINER */}
         <div className={`
           shrink-0 flex items-center justify-center text-[#d97757] transition-all duration-300
@@ -103,7 +103,6 @@ function ActionCard({ item, onClick, index }) {
           group-hover:bg-[#d97757] group-hover:text-white
           group-hover:shadow-md
         `}>
-                                  {/* <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 text-center"> */}
 
           <item.icon className="h-7 w-7 md:h-6 md:w-6" strokeWidth={1.5} />
         </div>
@@ -127,7 +126,8 @@ function ActionCard({ item, onClick, index }) {
 }
 
 export function DashboardHome({ setActiveView }) {
-  const { pantryId } = usePantry();
+  const { pantryId, pantryDetails } = usePantry();
+
   const [stats, setStats] = useState({
     inventoryCount: 0,
     totalPeopleServed: 0,
@@ -135,6 +135,13 @@ export function DashboardHome({ setActiveView }) {
     totalWeight: 0
   });
   const [loading, setLoading] = useState(true);
+  // --- FILTER LOGIC FOR DASHBOARD ACTIONS ---
+  const showClientTracking = pantryDetails?.settings?.enable_client_tracking ?? true;
+
+  const filteredActions = dashboardActions.filter(item =>
+    showClientTracking || item.view !== 'View Clients'
+  );
+  // --- FILTER LOGIC END ---
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -159,14 +166,16 @@ export function DashboardHome({ setActiveView }) {
 
   return (
     <div className="max-w-7xl mx-auto pb-24 px-3 md:px-6">
-      
+
       {/* SECTION 1: QUICK ACTIONS */}
       <div className="py-6 space-y-4">
         <h2 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
           Quick Actions
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5">
-          {dashboardActions.map((item, index) => (
+
+          {/* --- 3. USE filteredActions HERE INSTEAD OF dashboardActions --- */}
+          {filteredActions.map((item, index) => (
             <ActionCard
               key={item.title}
               item={item}
@@ -185,7 +194,7 @@ export function DashboardHome({ setActiveView }) {
             All time stats
           </span>
         </div>
-        
+
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title="Distributions"

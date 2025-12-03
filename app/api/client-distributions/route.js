@@ -14,7 +14,7 @@ const logChange = async (actionType, item, changes = null, metadata = {}, pantry
     if (unit === 'lbs') weight = qty;
     else if (unit === 'kg') weight = qty * 2.20462;
     else if (unit === 'oz') weight = qty / 16;
-    else weight = qty * 1; 
+    else weight = qty * 1;
 
     const value = weight * 2.50;
 
@@ -25,7 +25,7 @@ const logChange = async (actionType, item, changes = null, metadata = {}, pantry
       itemName: item.name,
       category: item.category,
       changes,
-      
+
       // Quantity Data
       quantityChanged: qty,
       unit: metadata.unit,
@@ -35,7 +35,7 @@ const logChange = async (actionType, item, changes = null, metadata = {}, pantry
       clientName: metadata.clientName,
       clientId: metadata.clientId,
       removedQuantity: qty,
-      
+
       // Impact Data
       impactMetrics: {
         peopleServed: 1,
@@ -43,7 +43,7 @@ const logChange = async (actionType, item, changes = null, metadata = {}, pantry
         standardizedWeight: parseFloat(weight.toFixed(2)),
         wasteDiverted: false
       },
-      
+
       timestamp: new Date()
     });
   } catch (e) {
@@ -79,24 +79,31 @@ export async function POST(req) {
 
     await connectDB();
 
+    // 🔥 SENIOR FIX: DEFAULT VALUES
+    // If frontend sends nothing (Mode: Inventory Only), we default to "System Adjustment"
+    const safeClientName = data.clientName || 'General Inventory Adjustment';
+    const safeClientId = data.clientId || 'SYS';
+
     // 1. Create Record
     const distribution = await ClientDistribution.create({
       ...data,
+      clientName: safeClientName, // Use safe value
+      clientId: safeClientId,     // Use safe value
       pantryId,
       distributionDate: new Date(),
     });
 
     // 2. Log to History
     await logChange('distributed', {
-        _id: data.itemId,
-        name: data.itemName,
-        category: data.category
+      _id: data.itemId,
+      name: data.itemName,
+      category: data.category
     }, null, {
-        reason: data.reason,
-        clientName: data.clientName,
-        clientId: data.clientId,
-        removedQuantity: data.quantityDistributed, // Ensure this maps to removedQuantity in helper
-        unit: data.unit
+      reason: data.reason,
+      clientName: safeClientName, // Use safe value
+      clientId: safeClientId,     // Use safe value
+      removedQuantity: data.quantityDistributed,
+      unit: data.unit
     }, pantryId);
 
     return NextResponse.json(distribution, { status: 201 });

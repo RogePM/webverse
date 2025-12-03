@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Leaf, // Using Leaf to mimic your logo
+  Leaf, 
   X, 
   Settings, 
   LogOut, 
@@ -13,11 +13,25 @@ import { Button } from '@/components/ui/button';
 import { navItems } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { createBrowserClient } from '@supabase/ssr';
+import { usePantry } from '@/components/providers/PantryProvider'; // <--- 1. IMPORT THIS
 
 export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebarOpen }) {
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+
+  // --- 2. GET SETTINGS FROM CONTEXT ---
+  const { pantryDetails } = usePantry();
+
+  // --- 3. FILTER LOGIC ---
+  // Default to true so it shows while loading, or if settings haven't been saved yet.
+  const showClientTracking = pantryDetails?.settings?.enable_client_tracking ?? true;
+
+  const filteredNavItems = navItems.filter(item => 
+    // If tracking is ON, show everything.
+    // If tracking is OFF, hide ONLY 'View Clients'.
+    showClientTracking || item.view !== 'View Clients'
   );
 
   const handleSignOut = async () => {
@@ -41,7 +55,7 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
             : 'text-gray-500 hover:bg-gray-100/50 hover:text-gray-900'
         )}
       >
-        {/* Icon Circle - The "Quick Card" Look */}
+        {/* Icon Circle */}
         <div className={cn(
           "mr-3 h-9 w-9 rounded-full flex items-center justify-center transition-colors duration-200",
           isActive 
@@ -109,7 +123,9 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 px-4 mt-2">
             Menu
           </div>
-          {navItems.map((item) => (
+          
+          {/* --- 4. USE FILTERED LIST HERE --- */}
+          {filteredNavItems.map((item) => (
             <NavItem key={item.name} item={item} />
           ))}
         </nav>

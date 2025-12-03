@@ -1,14 +1,15 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 
 const PantryContext = createContext({
   pantryId: null,
   userRole: null,
-  pantryDetails: null, // Store details like subscription_tier
-  availablePantries: [], // List of all pantries user can access
-  switchPantry: async () => { }, // Function to change location
+  pantryDetails: null, 
+  availablePantries: [], 
+  switchPantry: async () => { }, 
+  refreshPantry: async () => { }, // <--- NEW FUNCTION
   isLoading: true,
 });
 
@@ -19,7 +20,6 @@ export function PantryProvider({ children }) {
   const [availablePantries, setAvailablePantries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize Supabase Client
   const [supabase] = useState(() =>
     createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -27,119 +27,92 @@ export function PantryProvider({ children }) {
     )
   );
 
-  // --- HELPER: Switch Pantry Function ---
+  // --- 1. THE REFRESH LOGIC (Now reusable) ---
+  const refreshPantry = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
+
+      // A. Fetch Profile
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('current_pantry_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      // B. Fetch Memberships
+      const { data: memberships } = await supabase
+        .from('pantry_members')
+        .select(`
+          pantry_id,
+          role,
+          pantry:food_pantries (
+            *,
+            settings  
+          )
+        `) // ^ Added 'settings' and '*' to ensure we get everything
+        .eq('user_id', user.id);
+
+      // C. Determine Active Context
+      let activePantryId = profile?.current_pantry_id;
+      let activeRole = null;
+      let activeDetails = null;
+
+      if (memberships && memberships.length > 0) {
+        // Try to find the preferred pantry
+        const match = memberships.find(m => m.pantry_id === activePantryId);
+
+        if (!activePantryId || !match) {
+           // Default to first
+           activePantryId = memberships[0].pantry_id;
+           activeRole = memberships[0].role;
+           activeDetails = memberships[0].pantry;
+        } else {
+           activeRole = match.role;
+           activeDetails = match.pantry;
+        }
+      }
+
+      setAvailablePantries(memberships || []);
+      setPantryId(activePantryId || null);
+      setUserRole(activeRole || null);
+      setPantryDetails(activeDetails || null);
+
+    } catch (err) {
+      console.error('Error refreshing pantry:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [supabase]);
+
+  // --- 2. SWITCH PANTRY ---
   const switchPantry = async (newPantryId) => {
     try {
       setIsLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Update DB Profile preference
       await supabase
         .from('user_profiles')
         .update({ current_pantry_id: newPantryId })
         .eq('user_id', user.id);
 
-      // 2. Update Local State
-      setPantryId(newPantryId);
+      // Just re-run the main refresh logic to ensure everything stays in sync
+      await refreshPantry();
 
-      // 3. Find new role from the already loaded list
-      const selectedMembership = availablePantries.find(p => p.pantry_id === newPantryId);
-      if (selectedMembership) {
-        setUserRole(selectedMembership.role);
-        setPantryDetails(selectedMembership.pantry); // The joined pantry data
-      }
     } catch (error) {
       console.error("Failed to switch pantry:", error);
-    } finally {
       setIsLoading(false);
     }
   };
 
-  // Inside src/components/providers/PantryProvider.js
-
+  // --- 3. INITIAL LOAD ---
   useEffect(() => {
-    const fetchPantryData = async () => {
-      try {
-        // 1. Verify Auth
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-          setIsLoading(false);
-          return;
-        }
-
-        // 2. Fetch User Profile 
-        // CHANGE: Use .maybeSingle() instead of .single()
-        // This prevents the error when a new user is on the Onboarding page
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('current_pantry_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (profileError) throw profileError;
-
-        // 3. Fetch ALL Memberships
-        const { data: memberships, error: memberError } = await supabase
-          .from('pantry_members')
-          .select(`
-          pantry_id,
-          role,
-          pantry:food_pantries (
-            name,
-            address,
-            join_code,
-            subscription_tier,
-            max_items_limit
-          )
-        `)
-          .eq('user_id', user.id);
-
-        if (memberError) throw memberError;
-
-        // 4. Determine Active Context
-        let activePantryId = profile?.current_pantry_id;
-        let activeRole = null;
-        let activeDetails = null;
-
-        // If we have memberships but no preference set (or preference is invalid)
-        if (memberships && memberships.length > 0) {
-          const match = memberships.find(m => m.pantry_id === activePantryId);
-
-          if (!activePantryId || !match) {
-            // Default to the first pantry found
-            activePantryId = memberships[0].pantry_id;
-            activeRole = memberships[0].role;
-            activeDetails = memberships[0].pantry;
-
-            // Update the preference in background (if profile exists)
-            if (profile) {
-              await supabase.from('user_profiles')
-                .update({ current_pantry_id: activePantryId })
-                .eq('user_id', user.id);
-            }
-          } else {
-            activeRole = match.role;
-            activeDetails = match.pantry;
-          }
-        }
-
-        // 5. Set State
-        setAvailablePantries(memberships || []);
-        setPantryId(activePantryId || null);
-        setUserRole(activeRole || null);
-        setPantryDetails(activeDetails || null);
-
-      } catch (err) {
-        // Improved Error Logging
-        console.error('Error loading pantry context:', err.message || err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPantryData();
-  }, [supabase]);
+    refreshPantry();
+  }, [refreshPantry]);
 
   return (
     <PantryContext.Provider value={{
@@ -148,6 +121,7 @@ export function PantryProvider({ children }) {
       pantryDetails,
       availablePantries,
       switchPantry,
+      refreshPantry, // <--- EXPOSED HERE
       isLoading
     }}>
       {children}
