@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ScanBarcode,
   Package,
@@ -9,12 +9,8 @@ import {
   Loader2,
   ArrowLeft,
   Camera,
-  X,
   ChevronDown
 } from 'lucide-react';
-
-// IMPORT THE NEW HOOK
-import { useZxing } from "react-zxing";
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,8 +18,12 @@ import { Label } from '@/components/ui/label';
 import { SheetHeader, SheetTitle } from '@/components/ui/SheetCart';
 import { categories } from '@/lib/constants';
 import { usePantry } from '@/components/providers/PantryProvider';
-
 import { UpgradeModal } from '@/components/modals/UpgradeModal';
+
+// IMPORT YOUR DEDICATED COMPONENT
+// Ensure this path matches where you saved the component
+import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
+
 export function AddItemForm({ initialCategory, onClose }) {
   const { pantryId } = usePantry();
 
@@ -40,8 +40,8 @@ export function AddItemForm({ initialCategory, onClose }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingBarcode, setIsLoadingBarcode] = useState(false);
   const [showScanner, setShowScanner] = useState(false); // Controls Camera Overlay
-
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
   // --- LOGIC: Internal Barcode ---
   const generateInternalBarcode = () => {
     const randomCode = Math.floor(100000 + Math.random() * 900000);
@@ -56,12 +56,13 @@ export function AddItemForm({ initialCategory, onClose }) {
       setIsLoadingBarcode(true);
       try {
         const res = await fetch(`/api/barcode/${encodeURIComponent(barcode)}`, {
-          headers: { 'x-pantry-id': pantryId }
+          headers: { 'x-pantry-id': pantryId },
+          cache: 'no-store'
         });
         const data = await res.json();
         if (data.found && data.data) {
           setItemName(data.data.name || '');
-          setCategory(data.data.category || category);
+          setCategory(data.data.category || categories[0]?.value);
         }
       } catch (e) {
         console.error("Lookup failed", e);
@@ -71,7 +72,7 @@ export function AddItemForm({ initialCategory, onClose }) {
     };
     const timeout = setTimeout(lookup, 800);
     return () => clearTimeout(timeout);
-  }, [barcode, isInternalBarcode, pantryId, category]);
+  }, [barcode, isInternalBarcode, pantryId]);
 
   // --- UPDATED SUBMIT LOGIC ---
   const handleSubmit = async (e) => {
@@ -95,10 +96,9 @@ export function AddItemForm({ initialCategory, onClose }) {
         })
       });
 
-      // --- 🔥 FIX: OPEN MODAL ON 403 ERROR ---
       if (res.status === 403) {
         setIsSubmitting(false);
-        setShowUpgradeModal(true); // <--- Pop the modal
+        setShowUpgradeModal(true);
         return;
       }
 
@@ -121,53 +121,19 @@ export function AddItemForm({ initialCategory, onClose }) {
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
       />
-      {/* CAMERA OVERLAY (Shows when showScanner is true) */}
+
+      {/* --- CAMERA OVERLAY IMPLEMENTATION --- */}
+      {/* This is the only code needed now. 
+         It sits outside the layout flow because the component handles "fixed inset-0".
+      */}
       {showScanner && (
-        <div className="absolute inset-0 z-50 bg-black flex flex-col">
-          <div className="flex items-center justify-between p-4 bg-black/50 absolute top-0 left-0 right-0 z-10">
-            <span className="text-white font-medium">Scan Barcode</span>
-            <Button variant="ghost" className="text-white hover:bg-white/20" onClick={() => setShowScanner(false)}>
-              <X className="h-6 w-6" />
-            </Button>
-          </div>
-          <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
-
-            {/* LOADING STATE - (Optional: zxing loads very fast, but keeping for UI consistency) */}
-            <div className="absolute text-white/50 text-sm z-0 flex items-center gap-2">
-              <Loader2 className="animate-spin h-4 w-4" /> Starting Camera...
-            </div>
-
-            {/* NEW SCANNER IMPLEMENTATION */}
-            <ScannerWrapper
-              onScan={(result) => {
-                setBarcode(result);
-                setShowScanner(false);
-              }}
-              onError={(error) => {
-                console.error("Scanner Error:", error);
-                // Only alert on critical errors to avoid spamming the user
-                if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
-                  alert("Camera Error: Could not access camera.");
-                }
-              }}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowScanner(false)}
-              className="absolute top-4 right-4 z-50 bg-black/50 text-white hover:bg-black/70 rounded-full h-12 w-12 backdrop-blur-md border border-white/10"
-            >
-              <X className="h-6 w-6" />
-            </Button>
-
-            {/* Visual Guide Box */}
-            <div className="absolute border-2 border-[#d97757] w-64 h-40 rounded-lg opacity-50 pointer-events-none animate-pulse z-10"></div>
-          </div>
-          <div className="p-8 text-center text-white/70 text-sm">
-            Point camera at barcode
-          </div>
-        </div>
+        <BarcodeScannerOverlay 
+          onScan={(scannedCode) => {
+            setBarcode(scannedCode);
+            setShowScanner(false);
+          }}
+          onClose={() => setShowScanner(false)}
+        />
       )}
 
       {/* HEADER */}
@@ -320,42 +286,5 @@ export function AddItemForm({ initialCategory, onClose }) {
         </Button>
       </div>
     </div>
-  );
-}
-
-// --- HELPER COMPONENT FOR ZXING ---
-// We need this because hooks cannot be called conditionally. 
-// This component isolates the hook so it only runs when we render it.
-function ScannerWrapper({ onScan, onError }) {
-  // FIX 1: Memoize constraints so they don't trigger a camera restart on every render
-  const constraints = useMemo(() => ({
-    video: {
-      facingMode: "environment",
-      width: { min: 1280, ideal: 1920 },
-      height: { min: 720, ideal: 1080 },
-      aspectRatio: { ideal: 1.777 }, // 16:9 ratio fills phone screens better
-      focusMode: "continuous"
-    },
-    audio: false
-  }), []);
-
-  const { ref } = useZxing({
-    onDecodeResult(result) {
-      onScan(result.getText());
-    },
-    onError(error) {
-      if (onError) onError(error);
-    },
-    constraints: constraints,
-    timeBetweenDecodingAttempts: 300,
-  });
-
-  return (
-    <video
-      ref={ref}
-      className="w-full h-full object-cover"
-      muted
-      playsInline
-    />
   );
 }

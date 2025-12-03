@@ -106,7 +106,7 @@ export async function GET(req) {
   }
 }
 
-// ----------------------------------------------------------------------------------
+/// ----------------------------------------------------------------------------------
 // --- POST: Add Item ---
 // ----------------------------------------------------------------------------------
 export async function POST(req) {
@@ -200,8 +200,14 @@ export async function POST(req) {
 
     if (existingItem) {
       console.log('📦 Merging with existing batch');
+      
+      // 🔥 FIX 1: UPDATE INFO EVEN ON MERGE
+      // If the user fixed a typo or changed category, we update the existing record
+      existingItem.name = data.name; 
+      existingItem.category = data.category; 
       existingItem.quantity += quantityToAdd;
       existingItem.lastModified = new Date();
+      
       foodItem = await existingItem.save();
     } else {
       console.log('✨ Creating new batch');
@@ -215,15 +221,24 @@ export async function POST(req) {
       };
       foodItem = await FoodItem.create(newItemData);
 
-      if (barcode) {
+      await logChange('added', foodItem, null, {}, pantryId);
+    }
+
+    // 🔥 FIX 2: UPDATE CACHE ALWAYS
+    // We moved this OUT of the "else" block. 
+    // Now, every time you submit a valid item, the system "Learns" the new name/category.
+    if (barcode && !barcode.startsWith('INT-') && !barcode.startsWith('SYS-')) {
         await BarcodeCache.findOneAndUpdate(
           { barcode: barcode, pantryId },
-          { name: data.name, category: data.category, lastModified: new Date(), pantryId },
-          { upsert: true }
+          { 
+              name: data.name, 
+              category: data.category, 
+              lastModified: new Date(), 
+              pantryId 
+          },
+          { upsert: true, new: true } 
         );
-      }
-
-      await logChange('added', foodItem, null, {}, pantryId);
+        console.log('🧠 Barcode Cache Updated');
     }
 
     console.log('✅ POST /api/foods - Success');

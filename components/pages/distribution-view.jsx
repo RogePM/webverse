@@ -1,20 +1,21 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, ShoppingCart, Plus, PackageOpen, 
   ArrowRight, ChevronUp, Calendar, AlertTriangle, X, Camera, Loader2,
   Package, ScanBarcode
 } from 'lucide-react';
-import { useZxing } from "react-zxing";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/SheetCart';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { DistributionCart } from './distribution-cart';
+
+// --- IMPORT THE NEW SCANNER COMPONENT ---
+import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
 
 // --- HELPERS ---
 const formatDate = (dateString) => {
@@ -99,7 +100,7 @@ export function DistributionView() {
     setFilteredItems(results);
   }, [searchQuery, inventory]);
 
-  // --- NEW: Handle Barcode Scanned ---
+  // --- Handle Barcode Scanned ---
   const handleBarcodeScanned = async (barcode) => {
     console.log('📷 Scanned barcode:', barcode);
     setShowScanner(false);
@@ -117,9 +118,11 @@ export function DistributionView() {
         const inventoryItem = inventory.find(item => item._id === data.data._id || item.barcode === barcode);
         if (inventoryItem) {
           addToCart(inventoryItem);
+          setSearchQuery(inventoryItem.name); // Visual feedback
         } else {
-          // Set search query to show the item
+          // Set search query to show the item even if we don't have it (optional UX choice)
           setSearchQuery(data.data.name);
+          alert('Item found in database but not in your current stock.');
         }
       } else {
         alert('Item not found in inventory');
@@ -181,56 +184,15 @@ export function DistributionView() {
   return (
     <div className="relative flex flex-col h-[calc(100vh-6rem)] bg-white">
       
-      {/* --- ENHANCED ZXING CAMERA OVERLAY --- */}
+      {/* --- REUSABLE SCANNER COMPONENT --- */}
       {showScanner && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
-          <div className="flex items-center justify-between p-4 bg-black/50 absolute top-0 left-0 right-0 z-10">
-            <span className="text-white font-medium">Scan Item Barcode</span>
-            <Button 
-              variant="ghost" 
-              className="text-white hover:bg-white/20" 
-              onClick={() => setShowScanner(false)}
-            >
-              <X className="h-6 w-6" />
-            </Button>
-          </div>
-          
-          <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
-            <div className="absolute text-white/50 text-sm z-0 flex items-center gap-2">
-              <Loader2 className="animate-spin h-4 w-4" /> Starting Camera...
-            </div>
-            
-            <EnhancedScannerWrapper
-              onScan={handleBarcodeScanned}
-              onError={(error) => {
-                console.error("Scanner Error:", error);
-                if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
-                  alert("Camera Error: Could not access camera.");
-                }
-              }}
-            />
-            
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowScanner(false)}
-              className="absolute top-4 right-4 z-50 bg-black/50 text-white hover:bg-black/70 rounded-full h-12 w-12 backdrop-blur-md border border-white/10"
-            >
-              <X className="h-6 w-6" />
-            </Button>
-            
-            {/* Visual Guide Box */}
-            <div className="absolute border-2 border-[#d97757] w-64 h-40 rounded-lg opacity-50 pointer-events-none animate-pulse z-10"></div>
-          </div>
-          
-          <div className="p-8 text-center text-white/70 text-sm">
-            Point camera at barcode to add item
-          </div>
-        </div>
+        <BarcodeScannerOverlay 
+            onScan={handleBarcodeScanned}
+            onClose={() => setShowScanner(false)}
+        />
       )}
 
-      {/* LOADING OVERLAY */}
+      {/* --- LOCAL LOADING OVERLAY (For API Lookups) --- */}
       {isLookingUp && (
         <div className="fixed inset-0 bg-black/50 z-[90] flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg shadow-xl flex items-center gap-3">
@@ -276,7 +238,7 @@ export function DistributionView() {
                                         Search items...
                                     </Button>
                                     <Button 
-                                        className="h-11 w-11 shrink-0 bg-gray-900 text-white hover:bg-[#d97757]"
+                                        className="h-11 w-11 shrink-0 bg-[#bc2c00]/90 text-white hover:bg-[#d97757]"
                                         onClick={() => setShowScanner(true)}
                                     >
                                         <Camera className="h-5 w-5" />
@@ -472,39 +434,5 @@ export function DistributionView() {
       </div>
 
     </div>
-  );
-}
-
-// ENHANCED SCANNER COMPONENT
-function EnhancedScannerWrapper({ onScan, onError }) {
-  const constraints = useMemo(() => ({
-    video: {
-      facingMode: "environment",
-      width: { min: 1280, ideal: 1920 },
-      height: { min: 720, ideal: 1080 },
-      aspectRatio: { ideal: 1.777 },
-      focusMode: "continuous"
-    },
-    audio: false
-  }), []);
-
-  const { ref } = useZxing({
-    onDecodeResult(result) {
-      onScan(result.getText());
-    },
-    onError(error) {
-      if (onError) onError(error);
-    },
-    constraints: constraints,
-    timeBetweenDecodingAttempts: 300,
-  });
-
-  return (
-    <video
-      ref={ref}
-      className="w-full h-full object-cover"
-      muted
-      playsInline
-    />
   );
 }

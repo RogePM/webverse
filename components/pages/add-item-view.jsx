@@ -50,10 +50,10 @@ export function AddItemView() {
   }
 
   return (
-    <div className="relative h-full bg-white">
+    <div className="relative h-full bg-white flex flex-col">
       
       {/* --- HEADER --- */}
-      <div className="p-4 border-b bg-white z-10 sticky top-0">
+      <div className="p-4 border-b bg-white z-10 shrink-0">
         <div className="max-w-6xl mx-auto w-full">
             <div className="flex items-center justify-between">
                 <div>
@@ -77,7 +77,7 @@ export function AddItemView() {
       </div>
 
       {/* --- CONTENT --- */}
-      <div className="p-4 md:p-8 bg-gray-50/50 h-full overflow-y-auto pb-32">
+      <div className="flex-1 p-4 md:p-8 bg-gray-50/50 overflow-y-auto pb-32">
         <div className="max-w-6xl mx-auto">
             
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
@@ -92,9 +92,10 @@ export function AddItemView() {
                             transition-all duration-200 active:scale-[0.98]
                         "
                     >
+                       
                         {/* Icon Circle */}
                         <div className="
-                            mb-4 p-3 rounded-full bg-gray-50 text-gray-500
+                            mb-4 p-3 rounded-full bg-white text-[#d97757]
                             group-hover:bg-[#d97757]/10 group-hover:text-[#d97757]
                             transition-colors duration-200
                         ">

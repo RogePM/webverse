@@ -1,16 +1,18 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Minus, Plus, Trash2, Check, ArrowRight,
-    User, PackageOpen, Camera, X, Loader2, ScanBarcode
+    User, PackageOpen, Camera, Loader2, ScanBarcode
 } from 'lucide-react';
-import { useZxing } from "react-zxing";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { usePantry } from '@/components/providers/PantryProvider';
+
+// --- IMPORT REUSABLE SCANNER ---
+import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
 
 export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSuccess, onAddItemByBarcode }) {
     const { pantryId } = usePantry();
@@ -37,7 +39,7 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
     // --- BARCODE SCAN HANDLER ---
     const handleBarcodeScanned = async (barcode) => {
         console.log('📷 Scanned barcode:', barcode);
-        setShowScanner(false);
+        setShowScanner(false); // Close scanner immediately on scan
         setIsLookingUp(true);
 
         try {
@@ -130,62 +132,27 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
 
     return (
         <div className="flex flex-col h-full bg-white relative">
-            {/* CAMERA OVERLAY */}
+            
+            {/* === REUSABLE CAMERA OVERLAY === */}
             {showScanner && (
-                <div className="absolute inset-0 z-50 bg-black flex flex-col">
-                    <div className="flex items-center justify-between p-4 bg-black/50 absolute top-0 left-0 right-0 z-10">
-                        <span className="text-white font-medium">Scan Item to Add</span>
-                        <Button 
-                            variant="ghost" 
-                            className="text-white hover:bg-white/20" 
-                            onClick={() => setShowScanner(false)}
-                        >
-                            <X className="h-6 w-6" />
-                        </Button>
-                    </div>
-                    <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
-                        <div className="absolute text-white/50 text-sm z-0 flex items-center gap-2">
-                            <Loader2 className="animate-spin h-4 w-4" /> Starting Camera...
-                        </div>
-                        <EnhancedScannerWrapper
-                            onScan={handleBarcodeScanned}
-                            onError={(error) => {
-                                console.error("Scanner Error:", error);
-                                if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
-                                    alert("Camera Error: Could not access camera.");
-                                }
-                            }}
-                        />
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setShowScanner(false)}
-                            className="absolute top-4 right-4 z-50 bg-black/50 text-white hover:bg-black/70 rounded-full h-12 w-12 backdrop-blur-md border border-white/10"
-                        >
-                            <X className="h-6 w-6" />
-                        </Button>
-                        {/* Visual Guide Box */}
-                        <div className="absolute border-2 border-[#d97757] w-64 h-40 rounded-lg opacity-50 pointer-events-none animate-pulse z-10"></div>
-                    </div>
-                    <div className="p-8 text-center text-white/70 text-sm">
-                        Scan barcode to add item to cart
-                    </div>
-                </div>
+                <BarcodeScannerOverlay 
+                    onScan={handleBarcodeScanned}
+                    onClose={() => setShowScanner(false)}
+                />
             )}
 
-            {/* LOADING OVERLAY */}
+            {/* LOADING OVERLAY (For API Lookups) */}
             {isLookingUp && (
-                <div className="absolute inset-0 bg-black/50 z-40 flex items-center justify-center">
-                    <div className="bg-white p-6 rounded-lg shadow-xl flex items-center gap-3">
-                        <Loader2 className="animate-spin h-5 w-5 text-[#d97757]" />
-                        <span className="font-medium">Looking up item...</span>
+                <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center backdrop-blur-sm">
+                    <div className="bg-white p-6 rounded-2xl shadow-xl flex items-center gap-3">
+                        <Loader2 className="animate-spin h-6 w-6 text-[#d97757]" />
+                        <span className="font-medium text-gray-700">Looking up item...</span>
                     </div>
                 </div>
             )}
 
             {/* HEADER WITH SCAN BUTTON */}
-            <div className="p-4 border-b bg-white flex items-center justify-between">
+            <div className="p-4 border-b bg-white flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                     <PackageOpen className="h-5 w-5 text-[#d97757]" />
                     <h3 className="font-semibold text-lg">Distribution Cart</h3>
@@ -290,7 +257,7 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
                     </div>
 
                     {/* 2. FIXED BOTTOM FORM */}
-                    <div className="p-5 border-t bg-gray-50 pb-safe-area">
+                    <div className="p-5 border-t bg-gray-50 pb-safe-area shrink-0">
                         <div className="space-y-5">
                             {/* Anonymous Toggle */}
                             <div className="flex items-center justify-between bg-white p-3 rounded-lg border shadow-sm">
@@ -386,39 +353,5 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
                 </>
             )}
         </div>
-    );
-}
-
-// ENHANCED SCANNER COMPONENT
-function EnhancedScannerWrapper({ onScan, onError }) {
-    const constraints = useMemo(() => ({
-        video: {
-            facingMode: "environment",
-            width: { min: 1280, ideal: 1920 },
-            height: { min: 720, ideal: 1080 },
-            aspectRatio: { ideal: 1.777 },
-            focusMode: "continuous"
-        },
-        audio: false
-    }), []);
-
-    const { ref } = useZxing({
-        onDecodeResult(result) {
-            onScan(result.getText());
-        },
-        onError(error) {
-            if (onError) onError(error);
-        },
-        constraints: constraints,
-        timeBetweenDecodingAttempts: 300,
-    });
-
-    return (
-        <video
-            ref={ref}
-            className="w-full h-full object-cover"
-            muted
-            playsInline
-        />
     );
 }
