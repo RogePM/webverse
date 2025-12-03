@@ -71,7 +71,7 @@ export async function GET(req) {
 
     // 3. Calculate estimates
     const estimatedWeight = distData.totalItemsDistributed; 
-    const estimatedValue = distData.totalItemsDistributed * 2.50;
+    const estimatedValue = distData.totalItemsDistributed * 1.96;
 
     const response = {
       inventoryCount: totalItemsCount,

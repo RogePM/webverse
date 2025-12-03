@@ -24,7 +24,7 @@ export function DashboardLayout({ activeView, setActiveView, children }) {
           activeView={activeView}
           onMenuClick={() => setIsSidebarOpen(true)}
         />
-        <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
+        <main className="flex-1 md:p-1 overflow-x-hidden">
           <div className="max-w-7xl mx-auto">
             {children}
           </div>
